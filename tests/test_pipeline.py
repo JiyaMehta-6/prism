@@ -40,7 +40,7 @@ def synthetic_video(tmp_path_factory) -> str:
 def _settings() -> Settings:
     settings = Settings()
     settings.sample_fps = 1.0
-    settings.early_game_minutes = 15.0
+    settings.max_analysis_minutes = 45.0
     settings.ocr_enabled = False
     settings.use_game_clock = False
     settings.player_label = "SyntheticTester"
@@ -90,9 +90,12 @@ def test_full_pipeline(tmp_path, synthetic_video) -> None:
     assert archetypes, "no archetype produced"
     assert archetypes[0].reasons, "archetype without justification"
 
-    timeline = build_timeline(analyses=[analysis], edges=settings.window_plan)
-    assert len(timeline) == 4
+    timeline = build_timeline(
+        analyses=[analysis], edges=settings.window_plan, phases=settings.phase_boundaries
+    )
+    assert len(timeline) == len(settings.window_plan) - 1
     assert all(window.label for window in timeline)
+    assert {window.phase for window in timeline} <= {"Early", "Mid", "Late", "End"}
 
     insights = generate_insights(profile, fingerprint)
     assert insights
@@ -193,7 +196,7 @@ class _StubReader:
 def _ocr_settings() -> Settings:
     settings = Settings()
     settings.sample_fps = 1.0
-    settings.early_game_minutes = 15.0
+    settings.max_analysis_minutes = 45.0
     settings.ocr_enabled = True
     settings.use_game_clock = True
     settings.ocr_interval_sec = 10.0

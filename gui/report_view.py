@@ -1,10 +1,14 @@
 """Tabbed report presentation.
 
 ``ReportView`` renders an :class:`~core.models.AnalysisReport` into seven
-tabs: Overview, Fingerprint, Heatmaps, Timeline, Insights, Similarity and
-Videos.  Charts are displayed from the PNG files produced by
-:mod:`visualizations.charts`, so the GUI and the PDF always show identical
-figures.
+tabs: Overview, Fingerprint, Positioning, Timeline, Insights, Similarity and
+Videos.  Every fact has exactly one owner tab - Overview carries identity and
+verdict, Fingerprint the scores and their interpretation, Positioning the
+geography, Timeline the chronology, Insights the advice, Similarity the
+standing against other profiles and Videos the provenance - so nothing is
+printed twice while browsing.  Charts are displayed from the PNG files
+produced by :mod:`visualizations.charts`, so the GUI and the PDF always show
+identical figures.
 """
 
 from __future__ import annotations
@@ -30,11 +34,61 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from core.models import FINGERPRINT_METRICS, AnalysisReport
+from core.models import FINGERPRINT_METRICS, AnalysisReport, fresh_evidence, strip_axis_scores
 
-ACCENT = "#E8833A"
-PRIMARY = "#2F6FB2"
-MUTED = "#5D6D7E"
+ACCENT = "#C8AA6E"  # hextech gold
+PRIMARY = "#5B9CFF"  # electric blue
+MUTED = "#8B98AD"
+
+
+class ChartLabel(QLabel):
+    """Chart image that re-fits to the available width on every resize.
+
+    Charts used to be pre-scaled to a fixed height, so a 1025 px-wide figure
+    shown in a 740 px report area silently lost its right edge. This label
+    scales the source pixmap width-first (capped by ``max_height``), so a
+    chart is never cut off - it just renders smaller in a narrow window.
+    """
+
+    def __init__(self, pixmap: QPixmap, max_height: int) -> None:
+        super().__init__()
+        self._source = pixmap
+        self._max_height = max_height
+        self._fit_width = -1
+        self.setAlignment(Qt.AlignCenter)
+        # Ignored (not Preferred): a QLabel's minimum width normally equals
+        # its pixmap width, so the pixmap would keep the widget wide and the
+        # label could never receive a narrower resize event to shrink into.
+        self.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+        # Sensible hint before the first layout pass (resizeEvent refits).
+        self._fit_to(min(pixmap.width(), 640))
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        # Hidden widgets do not receive resize events, so refit on first show.
+        super().showEvent(event)
+        if self.width() != self._fit_width:
+            self._fit_to(self.width())
+
+    def resizeEvent(self, event) -> None:  # noqa: N802 - Qt naming
+        super().resizeEvent(event)
+        if event.size().width() != self._fit_width:
+            self._fit_to(event.size().width())
+
+    def _fit_to(self, width: int) -> None:
+        if self._source.isNull() or width <= 0:
+            return
+        target_w = width
+        target_h = round(self._source.height() * width / self._source.width())
+        if target_h > self._max_height:
+            target_h = self._max_height
+            target_w = round(self._source.width() * target_h / self._source.height())
+        self._fit_width = width
+        scaled = self._source.scaled(
+            target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        self.setPixmap(scaled)
+        # Height must follow the scale or the layout keeps stale tall rows.
+        self.setFixedHeight(scaled.height())
 
 
 class ReportView(QTabWidget):
@@ -50,7 +104,7 @@ class ReportView(QTabWidget):
         for name in (
             "Overview",
             "Fingerprint",
-            "Heatmaps",
+            "Positioning",
             "Timeline",
             "Insights",
             "Similarity",
@@ -71,7 +125,7 @@ class ReportView(QTabWidget):
         self.report = report
         self._render_overview(report)
         self._render_fingerprint(report)
-        self._render_heatmaps(report)
+        self._render_positioning(report)
         self._render_timeline(report)
         self._render_insights(report)
         self._render_similarity(report)
@@ -85,7 +139,7 @@ class ReportView(QTabWidget):
         label = QLabel(message)
         label.setAlignment(Qt.AlignCenter)
         label.setWordWrap(True)
-        label.setStyleSheet("color: #7F8C8D; font-size: 14px; padding: 40px;")
+        label.setStyleSheet("color: #6B7A92; font-size: 14px; padding: 40px;")
         layout.addWidget(label)
         return widget
 
@@ -115,63 +169,54 @@ class ReportView(QTabWidget):
         return scroll
 
     def _render_overview(self, report: AnalysisReport) -> None:
+        # Owner of: identity, aggregate KPIs, playstyle verdict, data quality.
+        # Scores live in Fingerprint, advice in Insights - nothing here repeats.
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setSpacing(12)
 
         profile = report.profile
-        champion_part = ""
+        meta: List[str] = []
         if profile.champion:
-            champion_part = (
-                f" &nbsp;|&nbsp; champion: {html_escape(profile.champion)} "
+            meta.append(
+                f"champion: {html_escape(profile.champion)} "
                 f"({profile.champion_confidence * 100:.0f}%)"
             )
+        if report.generated_at:
+            meta.append(f"analysed {html_escape(report.generated_at)}")
+        meta_html = (
+            f"<br><span style='font-size:12px; color:{MUTED}'>{' | '.join(meta)}</span>"
+            if meta
+            else ""
+        )
         header = QLabel(
             f"<span style='font-size:20px; font-weight:bold; color:{PRIMARY}'>"
-            f"{html_escape(profile.player_label)}</span><br>"
-            f"<span style='font-size:13px; color:{MUTED}'>"
-            f"{html_escape(report.headline)} &nbsp;|&nbsp; {profile.video_count} videos &nbsp;|&nbsp; "
-            f"{profile.total_samples} samples &nbsp;|&nbsp; "
-            f"{profile.detection_rate * 100:.0f}% detection &nbsp;|&nbsp; "
-            f"own base: {html_escape(profile.own_base)}"
-            f"{champion_part}</span>"
+            f"{html_escape(profile.player_label)}</span>{meta_html}"
         )
         header.setWordWrap(True)
         layout.addWidget(header)
 
-        grid_host = QWidget()
-        grid = QGridLayout(grid_host)
+        kpi_host = QWidget()
+        grid = QGridLayout(kpi_host)
         grid.setSpacing(10)
-        for index, archetype in enumerate(report.archetypes[:4]):
-            grid.addWidget(self._archetype_card(archetype), index // 2, index % 2)
-        layout.addWidget(grid_host)
+        tiles = (
+            (str(profile.video_count), "videos analysed"),
+            (str(profile.total_samples), "position samples"),
+            (f"{profile.detection_rate * 100:.0f}%", "marker detection"),
+            (profile.own_base, "own base"),
+        )
+        for index, (value, caption) in enumerate(tiles):
+            grid.addWidget(self._kpi_tile(value, caption), 0, index)
+        layout.addWidget(kpi_host)
 
-        for name, section in report.sections.items():
-            summary = getattr(section, "summary", "")
-            notes: List[str] = getattr(section, "notes", [])
-            score = getattr(section, "score", None)
-            conf = getattr(section, "confidence", None)
-            badge = ""
-            if score is not None:
-                badge = (
-                    f"<span style='color:{ACCENT}; font-weight:bold;'>{score:.1f}/10</span>"
-                )
-            if conf is not None:
-                badge += f" &nbsp; <span style='color:{MUTED}'>confidence {conf * 100:.0f}%</span>"
-            html = f"<div style='font-size:14px; font-weight:bold; color:{PRIMARY}'>{name} {badge}</div>"
-            html += f"<p style='margin-top:4px;'>{html_escape(summary)}</p>"
-            if notes:
-                html += "<ul>" + "".join(
-                    f"<li>{html_escape(n)}</li>" for n in notes
-                ) + "</ul>"
-            label = QLabel(html)
-            label.setWordWrap(True)
-            label.setTextFormat(Qt.RichText)
-            label.setStyleSheet(
-                "background: #F8F9F9; border-left: 4px solid "
-                f"{PRIMARY}; border-radius: 4px; padding: 10px;"
-            )
-            layout.addWidget(label)
+        if report.archetypes:
+            layout.addWidget(self._caption("Playstyle verdict"))
+            grid_host = QWidget()
+            arch_grid = QGridLayout(grid_host)
+            arch_grid.setSpacing(10)
+            for index, archetype in enumerate(report.archetypes[:4]):
+                arch_grid.addWidget(self._archetype_card(archetype), index // 2, index % 2)
+            layout.addWidget(grid_host)
 
         if profile.quality_notes:
             quality = QLabel(
@@ -179,18 +224,61 @@ class ReportView(QTabWidget):
                 + "<br>".join(f"• {html_escape(n)}" for n in profile.quality_notes)
             )
             quality.setWordWrap(True)
-            quality.setStyleSheet("color:#B9770E; background:#FEF9E7; padding:8px; border-radius:4px;")
+            quality.setStyleSheet("color:#F5C26B; background:#231B0E; padding:8px; border-radius:4px;")
             layout.addWidget(quality)
 
         layout.addStretch(1)
         self._replace(self._pages["Overview"], self._scroll(container))
 
     @staticmethod
+    def _kpi_tile(value: str, caption: str) -> QFrame:
+        tile = QFrame()
+        tile.setFrameShape(QFrame.StyledPanel)
+        tile.setStyleSheet(
+            "QFrame { background: #121A2B; border: 1px solid #26324A; border-radius: 6px; }"
+        )
+        box = QVBoxLayout(tile)
+        box.setSpacing(2)
+        number = QLabel(value)
+        number.setAlignment(Qt.AlignCenter)
+        number.setStyleSheet(f"color:{ACCENT}; font-size:20px; font-weight:bold;")
+        box.addWidget(number)
+        label = QLabel(caption)
+        label.setAlignment(Qt.AlignCenter)
+        label.setWordWrap(True)
+        label.setStyleSheet(f"color:{MUTED}; font-size:11px;")
+        box.addWidget(label)
+        return tile
+
+    @staticmethod
+    def _section_card(name: str, section) -> QWidget:
+        # Score badges and "(x.x/10)" citations are stripped: the score table
+        # directly above owns every number; cards explain what it means.
+        summary = strip_axis_scores(getattr(section, "summary", "") or "")
+        notes = [strip_axis_scores(n) for n in (getattr(section, "notes", []) or [])]
+        html = (
+            f"<div style='font-size:14px; font-weight:bold; color:{PRIMARY}'>"
+            f"{html_escape(name)}</div>"
+        )
+        if summary:
+            html += f"<p style='margin-top:4px;'>{html_escape(summary)}</p>"
+        if notes:
+            html += "<ul>" + "".join(f"<li>{html_escape(n)}</li>" for n in notes) + "</ul>"
+        label = QLabel(html)
+        label.setWordWrap(True)
+        label.setTextFormat(Qt.RichText)
+        label.setStyleSheet(
+            "background: #121A2B; border-left: 4px solid "
+            f"{PRIMARY}; border-radius: 4px; padding: 10px;"
+        )
+        return label
+
+    @staticmethod
     def _archetype_card(archetype) -> QWidget:
         card = QFrame()
         card.setFrameShape(QFrame.StyledPanel)
         card.setStyleSheet(
-            "QFrame { background: white; border: 1px solid #D5D8DC; border-radius: 6px; }"
+            "QFrame { background: #121A2B; border: 1px solid #26324A; border-radius: 6px; }"
         )
         layout = QVBoxLayout(card)
         title = QLabel(
@@ -206,12 +294,15 @@ class ReportView(QTabWidget):
         reasons = QLabel(reasons_html)
         reasons.setWordWrap(True)
         reasons.setTextFormat(Qt.RichText)
-        reasons.setStyleSheet("color:#34495E; font-size:12px;")
+        reasons.setStyleSheet("color:#B7C2D4; font-size:12px;")
         layout.addWidget(reasons)
-        card.setMinimumWidth(320)
+        card.setMinimumWidth(260)  # two cards + gap still fit a 1000 px window
         return card
 
     def _render_fingerprint(self, report: AnalysisReport) -> None:
+        # Owner of: the seven scores (chart shape + exact table) and the
+        # prose interpretation of each axis. The bars chart is deliberately
+        # not shown - it plots the same seven scores the table already lists.
         container = QWidget()
         layout = QVBoxLayout(container)
 
@@ -236,31 +327,81 @@ class ReportView(QTabWidget):
             conf_item = QTableWidgetItem(f"{conf * 100:.0f}%")
             conf_item.setTextAlignment(Qt.AlignCenter)
             table.setItem(row, 2, conf_item)
-            table.setItem(row, 3, QTableWidgetItem(evidence))
+            evidence_item = QTableWidgetItem(evidence)
+            evidence_item.setToolTip(evidence)  # cells elide when narrow
+            table.setItem(row, 3, evidence_item)
         table.setMinimumHeight(280)
         layout.addWidget(table)
 
-        bars = report.chart_paths.get("insights")
-        if bars and os.path.isfile(bars):
-            layout.addWidget(self._image(bars, 360))
+        named = [(name, section) for name, section in report.sections.items()]
+        if named:
+            layout.addWidget(self._caption("What each axis means"))
+            for name, section in named:
+                if name == "Benchmark":
+                    continue  # percentile standing belongs to Similarity
+                layout.addWidget(self._section_card(name, section))
         layout.addStretch(1)
         self._replace(self._pages["Fingerprint"], self._scroll(container))
 
-    def _render_heatmaps(self, report: AnalysisReport) -> None:
+    def _render_positioning(self, report: AnalysisReport) -> None:
+        # Owner of: geography. Captions state the takeaway of each figure,
+        # never a rephrase of its embedded title, so nothing reads twice.
         container = QWidget()
         layout = QVBoxLayout(container)
-        for key, caption in (
-            ("heatmap", "Position heatmap over the 0-15 minute window"),
-            ("regions", "Share of time per region"),
-            ("transitions", "Region transition matrix"),
-            ("consistency", "Match-to-match behavioural variation"),
+        profile = report.profile
+
+        regions = report.chart_paths.get("regions")
+        if regions and os.path.isfile(regions):
+            takeaway = self._regions_takeaway(profile)
+            if takeaway:
+                layout.addWidget(self._caption(takeaway))
+            layout.addWidget(self._image(regions, 560))
+
+        transitions = report.chart_paths.get("transitions")
+        if transitions and os.path.isfile(transitions):
+            takeaway = self._transition_takeaway(profile)
+            if takeaway:
+                layout.addWidget(self._caption(takeaway))
+            layout.addWidget(self._image(transitions, 560))
+
+        consistency = report.chart_paths.get("consistency")
+        if consistency and os.path.isfile(consistency):
+            layout.addWidget(self._caption(
+                "Each group of bars is one recording - flatter groups mean steadier play."
+            ))
+            layout.addWidget(self._image(consistency, 560))
+
+        if not any(
+            report.chart_paths.get(key)
+            for key in ("regions", "transitions", "consistency")
         ):
-            path = report.chart_paths.get(key)
-            if path and os.path.isfile(path):
-                layout.addWidget(self._caption(caption))
-                layout.addWidget(self._image(path, 560))
+            layout.addWidget(QLabel("No positioning charts were produced for this analysis."))
         layout.addStretch(1)
-        self._replace(self._pages["Heatmaps"], self._scroll(container))
+        self._replace(self._pages["Positioning"], self._scroll(container))
+
+    @staticmethod
+    def _regions_takeaway(profile) -> str:
+        ranked = sorted(
+            (r for r, v in profile.region_distribution.items() if v > 0),
+            key=lambda r: profile.region_distribution.get(r, 0.0),
+            reverse=True,
+        )
+        if not ranked:
+            return ""
+        if len(ranked) == 1:
+            return f"All tracked time spent in {ranked[0]}."
+        return f"Most-visited areas: {ranked[0]} first, {ranked[1]} second."
+
+    @staticmethod
+    def _transition_takeaway(profile) -> str:
+        best = (0, "", "")
+        for source, row in profile.transition_matrix.items():
+            for destination, count in row.items():
+                if count > best[0]:
+                    best = (count, source, destination)
+        if not best[1]:
+            return ""
+        return f"Most frequent rotation: {best[1]} \u2192 {best[2]} ({best[0]}\u00d7)."
 
     def _render_timeline(self, report: AnalysisReport) -> None:
         container = QWidget()
@@ -278,9 +419,11 @@ class ReportView(QTabWidget):
             self._replace(self._pages["Timeline"], self._scroll(container))
             return
 
+        # Window labels, aggression and confidence are annotated directly on
+        # the chart above; the table owns the game phase, kills and summary.
         table = QTableWidget(len(timeline), 5)
         table.setHorizontalHeaderLabels(
-            ["Window", "Label", "Aggression", "Confidence", "Summary"]
+            ["Window", "Game phase", "Behaviour", "Kills", "Summary"]
         )
         table.verticalHeader().setVisible(False)
         table.setEditTriggers(QTableWidget.NoEditTriggers)
@@ -291,14 +434,15 @@ class ReportView(QTabWidget):
         for row, window in enumerate(timeline):
             values = [
                 f"{window.start_label}-{window.end_label}",
+                window.phase or "-",
                 window.label,
-                f"{window.aggression_index:.1f}",
-                f"{window.confidence * 100:.0f}%",
+                str(window.kills),
                 window.summary,
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                if column in (2, 3):
+                item.setToolTip(value)
+                if column in (0, 1, 3):
                     item.setTextAlignment(Qt.AlignCenter)
                 table.setItem(row, column, item)
         table.setMinimumHeight(240)
@@ -317,14 +461,14 @@ class ReportView(QTabWidget):
         intro.setStyleSheet(f"color:{MUTED}; font-size:12px;")
         layout.addWidget(intro)
 
-        colors = {"risk": "#C4453C", "strength": "#3FA46A", "info": PRIMARY}
+        colors = {"risk": "#FF4655", "strength": "#37D399", "info": PRIMARY}
         for insight in report.insights or []:
             color = colors.get(insight.severity, PRIMARY)
             card = QFrame()
             card.setFrameShape(QFrame.StyledPanel)
             card.setStyleSheet(
-                f"QFrame {{ background: white; border-left: 5px solid {color}; "
-                "border-radius: 4px; }}"
+                f"QFrame {{ background: #121A2B; border-left: 5px solid {color}; "
+                "border-radius: 4px; }"
             )
             box = QVBoxLayout(card)
             title = QLabel(
@@ -340,10 +484,12 @@ class ReportView(QTabWidget):
             body.setMaximumHeight(150)
             body.setStyleSheet("border:none; background: transparent;")
             html = f"<p>{html_escape(insight.detail)}</p>"
-            if insight.evidence:
+            # Only bullets with numbers the narrative does not already state.
+            evidence = fresh_evidence(insight.detail, insight.evidence)
+            if evidence:
                 html += (
-                    "<p style='color:#5D6D7E; font-size:11px'><b>Evidence:</b> "
-                    + " | ".join(html_escape(item) for item in insight.evidence)
+                    "<p style='color:#9AA7BC; font-size:11px'><b>Evidence:</b> "
+                    + " | ".join(html_escape(item) for item in evidence)
                     + "</p>"
                 )
             html += (
@@ -358,8 +504,12 @@ class ReportView(QTabWidget):
         self._replace(self._pages["Insights"], self._scroll(container))
 
     def _render_similarity(self, report: AnalysisReport) -> None:
+        # Owner of: standing against other profiles - pairwise similarity and
+        # benchmark percentiles. The similarity chart is not shown; the table
+        # already carries every percentage with its interpretation.
         container = QWidget()
         layout = QVBoxLayout(container)
+        benchmark = report.sections.get("Benchmark")
         if report.similarity:
             table = QTableWidget(len(report.similarity), 3)
             table.setHorizontalHeaderLabels(["Profile", "Similarity", "Interpretation"])
@@ -367,23 +517,28 @@ class ReportView(QTabWidget):
             table.setEditTriggers(QTableWidget.NoEditTriggers)
             table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
             for row, result in enumerate(report.similarity):
-                table.setItem(row, 0, QTableWidgetItem(result.profile_name))
+                name_item = QTableWidgetItem(result.profile_name)
+                name_item.setToolTip(result.profile_name)
+                table.setItem(row, 0, name_item)
                 item = QTableWidgetItem(f"{result.similarity * 100:.1f}%")
                 item.setTextAlignment(Qt.AlignCenter)
                 table.setItem(row, 1, item)
-                table.setItem(row, 2, QTableWidgetItem(result.note))
+                note_item = QTableWidgetItem(result.note)
+                note_item.setToolTip(result.note)  # last column elides
+                table.setItem(row, 2, note_item)
             table.setMinimumHeight(200)
             layout.addWidget(table)
-        else:
-            layout.addWidget(
-                QLabel(
-                    "No comparable profiles stored yet. Analyse other players to build a "
-                    "behavioural comparison library."
-                )
+        elif benchmark is None:
+            label = QLabel(
+                "No comparable profiles stored yet. Analyse other players to build a "
+                "behavioural comparison library."
             )
-        chart = report.chart_paths.get("similarity")
-        if chart and os.path.isfile(chart):
-            layout.addWidget(self._image(chart, 320))
+            label.setWordWrap(True)
+            layout.addWidget(label)
+
+        if benchmark is not None:
+            layout.addWidget(self._caption("Standing vs stored profiles"))
+            layout.addWidget(self._section_card("Benchmark", benchmark))
         layout.addStretch(1)
         self._replace(self._pages["Similarity"], self._scroll(container))
 
@@ -421,6 +576,7 @@ class ReportView(QTabWidget):
             ]
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
+                item.setToolTip(value)  # video names/notes elide when narrow
                 if column in (2, 3, 4, 5, 6):
                     item.setTextAlignment(Qt.AlignCenter)
                 table.setItem(row, column, item)
@@ -436,6 +592,7 @@ class ReportView(QTabWidget):
             ) + "</ul>"
             label = QLabel(settings_text)
             label.setTextFormat(Qt.RichText)
+            label.setWordWrap(True)  # otherwise long values force a horizontal scrollbar
             label.setStyleSheet(f"color:{MUTED}; font-size:12px;")
             layout.addWidget(label)
 
@@ -453,11 +610,6 @@ class ReportView(QTabWidget):
         pixmap = QPixmap(path)
         if pixmap.isNull():
             label = QLabel(f"(chart unavailable: {os.path.basename(path)})")
-            label.setStyleSheet("color:#C0392B;")
+            label.setStyleSheet("color:#FF6B7A;")
             return label
-        scaled = pixmap.scaledToHeight(max_height, Qt.SmoothTransformation)
-        label = QLabel()
-        label.setPixmap(scaled)
-        label.setAlignment(Qt.AlignCenter)
-        label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        return label
+        return ChartLabel(pixmap, max_height)

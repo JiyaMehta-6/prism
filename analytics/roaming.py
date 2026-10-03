@@ -152,7 +152,7 @@ def _summarise(
     if lane_fraction >= 0.55:
         return (
             f"Lane-anchored profile ({score:.1f}/10): rotations are rare ({rate:.2f}/min) and "
-            "the player derives most early-game value from staying in lane."
+            "the player derives most value from staying in lane."
         )
     return (
         f"Lane-anchored profile ({score:.1f}/10): rotations are rare ({rate:.2f}/min) despite "

@@ -12,7 +12,14 @@ from core.behavior_engine import BehaviorEngine
 from core.config import Settings, load_settings
 from core.fingerprint_engine import FingerprintEngine
 from core.frame_extractor import FrameExtractor
-from core.models import FINGERPRINT_METRICS, OcrReading, PlayerProfile, RoamEvent
+from core.models import (
+    FINGERPRINT_METRICS,
+    OcrReading,
+    PlayerProfile,
+    RoamEvent,
+    fresh_evidence,
+    strip_axis_scores,
+)
 from core.video_loader import is_supported, probe_video
 from tests.video_synth import make_synthetic_video, make_unreadable_video
 from vision.confidence_manager import ConfidenceManager
@@ -193,11 +200,35 @@ def test_settings_roundtrip(tmp_path, monkeypatch) -> None:
 def test_default_settings_are_sane() -> None:
     settings = load_settings()
     assert 0.1 <= settings.sample_fps <= 10.0
-    assert settings.early_game_minutes >= 1.0
+    assert settings.max_analysis_minutes >= 1.0
     assert settings.minimap_side in ("auto", "left", "right")
 
 
-def test_profile_histogram_shape() -> None:
+def test_phase_aware_window_plan() -> None:
+    from core.config import phase_for_minute
+
+    settings = Settings().validated()
+    plan = settings.window_plan
+    assert plan[0] == 0.0
+    assert plan[-1] == 45.0
+    for boundary in (14.0, 25.0, 35.0):
+        assert boundary in plan, "phase boundaries must be timeline edges"
+
+    # A stale plan persisted by an older install is re-derived, not trusted.
+    stale = Settings()
+    stale.window_plan = [0.0, 3.0, 7.0, 12.0, 15.0]
+    stale.max_analysis_minutes = 45.0
+    stale = stale.validated()
+    assert stale.window_plan[-1] == 45.0
+    assert 15.0 < stale.window_plan[-2] or stale.window_plan[-1] - stale.window_plan[-2] <= 7.0
+
+    assert phase_for_minute(0.0, settings.phase_boundaries) == "Early"
+    assert phase_for_minute(14.0, settings.phase_boundaries) == "Mid"
+    assert phase_for_minute(35.0, settings.phase_boundaries) == "End"
+    assert phase_for_minute(100.0, settings.phase_boundaries) == "End"
+
+
+def test_stub_profile_shape() -> None:
     profile = _stub_profile()
     assert profile.video_count == 3
     assert abs(sum(profile.region_distribution.values()) - 1.0) < 1e-6
@@ -501,3 +532,33 @@ def test_profile_picks_most_voted_champion() -> None:
 
     solo = build_profile([_analysis("x.mp4", "Ghost", CLAIM_GATE - 0.10)], "Player")
     assert solo.champion is None  # sub-gate evidence never becomes a claim
+
+
+def test_strip_axis_scores_removes_score_citations() -> None:
+    assert (
+        strip_axis_scores("Moderately aggressive profile (6.1/10): the player rotates.")
+        == "Moderately aggressive profile: the player rotates."
+    )
+    assert (
+        strip_axis_scores("Aggression: 6.1/10 - percentile 7 (stored median 7.1, n=7)")
+        == "Aggression - percentile 7 (stored median 7.1, n=7)"
+    )
+    # Text without score citations passes through untouched.
+    note = "Only one recording analysed - consistency will be validated."
+    assert strip_axis_scores(note) == note
+
+
+def test_fresh_evidence_drops_numbers_already_in_detail() -> None:
+    detail = "35% of tracked time is spent inside the enemy half while rotating at 1.00 times per minute."
+    items = [
+        "Enemy-side presence: 35.0%",
+        "Roam rate: 1.00/min",
+        "Late-window enemy-side presence: 66.7%",
+    ]
+    assert fresh_evidence(detail, items) == [
+        "Late-window enemy-side presence: 66.7%"
+    ]
+    # Qualitative evidence (no numbers) is always kept.
+    assert fresh_evidence("x", ["river control matters"]) == ["river control matters"]
+    # Fully covered evidence collapses to nothing instead of repeating.
+    assert fresh_evidence("35% enemy half", ["Enemy-side presence: 35.0%"]) == []

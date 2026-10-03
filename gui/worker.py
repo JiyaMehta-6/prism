@@ -14,6 +14,8 @@ Signals
 
 from __future__ import annotations
 
+import copy
+import math
 import os
 import time
 import traceback
@@ -114,6 +116,11 @@ class AnalysisWorker(QThread):
                 f"{info.duration_label}, {info.fps:.1f} fps)"
             )
             infos.append(info)
+
+        # Cap the analysed span to the longest recording (rounded up to the
+        # next 5 minutes), so timeline windows always land inside observed
+        # data even when the configured cap exceeds a shorter clip.
+        self.settings = self._effective_settings(infos)
 
         results: dict = {}
         if len(infos) > 1:
@@ -219,6 +226,7 @@ class AnalysisWorker(QThread):
             edges=self.settings.window_plan,
             own_base=profile.own_base,
             anchors=self.settings.region_anchors or None,
+            phases=self.settings.phase_boundaries,
         )
 
         self._emit(87, "Generating improvement insights")
@@ -313,10 +321,22 @@ class AnalysisWorker(QThread):
             if summary:
                 self.log.emit(summary)
 
+    def _effective_settings(self, infos: Sequence[VideoInfo]) -> Settings:
+        """Copy of the settings with the analysis cap anchored to real data."""
+        settings = copy.copy(self.settings)
+        longest = max((info.duration_sec for info in infos), default=0.0)
+        if longest > 0:
+            span_minutes = max(5.0, math.ceil(longest / 300.0) * 5.0)
+            settings.max_analysis_minutes = min(
+                settings.max_analysis_minutes, span_minutes
+            )
+        return settings.validated()
+
     def _settings_snapshot(self) -> dict:
         return {
             "sample_fps": self.settings.sample_fps,
-            "early_game_minutes": self.settings.early_game_minutes,
+            "max_analysis_minutes": self.settings.max_analysis_minutes,
+            "phase_boundaries": list(self.settings.phase_boundaries),
             "minimap_side": self.settings.minimap_side,
             "ocr_enabled": self.settings.ocr_enabled,
             "use_game_clock": self.settings.use_game_clock,

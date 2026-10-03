@@ -1,9 +1,10 @@
-"""Tactical timeline of the early game.
+"""Tactical timeline of the whole match.
 
-The 0-15 minute window is sliced into configurable segments (default
-0-3, 3-7, 7-12, 12-15).  For every segment PRISM measures the region
-distribution, the forward-positioning index and the rotation count, then
-labels the segment with the behavioural mode that best explains those numbers:
+The analysed span is sliced into configurable segments (default: ~7-minute
+buckets aligned to the LoL phases - Early 0-14, Mid 14-25, Late 25-35,
+End 35+). For every segment PRISM measures the region distribution, the
+forward-positioning index and the rotation count, then labels the segment
+with the behavioural mode that best explains those numbers:
 
 * Conservative Laning
 * Aggressive Trading
@@ -11,8 +12,10 @@ labels the segment with the behavioural mode that best explains those numbers:
 * Objective Preparation
 * Transitional Play
 
-Labels always carry a confidence derived from the amount of evidence in the
-segment, so thin segments never masquerade as conclusions.
+Each window also carries the game phase it belongs to, so early-game
+laning, mid-game rotations, late-game teamfights and the end game can be
+read apart. Labels always carry a confidence derived from the amount of
+evidence in the segment, so thin segments never masquerade as conclusions.
 """
 
 from __future__ import annotations
@@ -20,13 +23,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Sequence, Tuple
 
+from core.config import phase_for_minute
 from core.logger import get_logger
 from core.models import PositionSample, TimelineWindow, VideoAnalysis
 from vision.region_mapper import RegionMapper
 
 logger = get_logger("timeline")
 
-DEFAULT_EDGES: Tuple[float, ...] = (0.0, 3.0, 7.0, 12.0, 15.0)
+DEFAULT_EDGES: Tuple[float, ...] = (0.0, 7.0, 14.0, 19.5, 25.0, 30.0, 35.0, 40.0, 45.0)
 
 
 @dataclass
@@ -44,8 +48,13 @@ def build_timeline(
     sample_floor: int = 6,
     own_base: str = "Blue",
     anchors: Dict[str, object] | None = None,
+    phases: Sequence[float] | None = None,
 ) -> List[TimelineWindow]:
-    """Build the behavioural timeline across all recordings."""
+    """Build the behavioural timeline across all recordings.
+
+    ``phases`` are the LoL phase boundaries (minutes); every window is
+    stamped with the phase its start minute falls into.
+    """
     try:
         cleaned = sorted({float(value) for value in edges})
     except (TypeError, ValueError):
@@ -95,6 +104,7 @@ def build_timeline(
                 label=label,
                 summary=summary,
                 confidence=confidence,
+                phase=phase_for_minute(start, phases),
                 region_distribution=distribution,
                 aggression_index=aggression_index,
                 kills=kills,
@@ -103,7 +113,9 @@ def build_timeline(
 
     logger.info(
         "Timeline built: %s",
-        " | ".join(f"{w.start_label}-{w.end_label}: {w.label}" for w in windows),
+        " | ".join(
+            f"{w.start_label}-{w.end_label} [{w.phase}]: {w.label}" for w in windows
+        ),
     )
     return windows
 

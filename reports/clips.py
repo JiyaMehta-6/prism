@@ -29,8 +29,8 @@ logger = get_logger("clips")
 
 CLIP_PRE_SEC = 5.0
 CLIP_POST_SEC = 5.0
-# A hard cap keeps a 15-minute replay from producing hundreds of files;
-# the most interesting roams are exported first (earliest in the early game).
+# A hard cap keeps a full replay from producing hundreds of files;
+# the most interesting roams are exported first (earliest in the match).
 MAX_CLIPS_PER_VIDEO = 6
 
 

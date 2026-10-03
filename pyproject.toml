@@ -4,7 +4,7 @@ version = "1.0.0"
 description = "PRISM - Player Replay Intelligence and Strategic Modeling: vision-based behavioral analytics for League of Legends players"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "PRISM Development Team" }]
 keywords = ["league-of-legends", "computer-vision", "behavioral-analytics", "opencv", "pyside6"]
 dependencies = [

@@ -9,7 +9,6 @@ A single video yields noisy statistics.  The profiler merges several
 * roam rate, destinations and recurring roam paths,
 * mean / standard-deviation of every per-video metric (the basis of the
   consistency score),
-* a coarse position histogram used for heatmap rendering,
 * quality notes describing how trustworthy the underlying detections were.
 """
 
@@ -18,16 +17,12 @@ from __future__ import annotations
 import statistics
 from typing import Dict, List, Optional, Sequence
 
-import numpy as np
-
 from core.logger import get_logger
 from core.models import PlayerProfile, VideoAnalysis
 from vision.champion_identifier import CLAIM_GATE
 from vision.region_mapper import REGIONS
 
 logger = get_logger("profiler")
-
-HIST_BINS = 24
 
 
 def _mean(values: Sequence[float]) -> float:
@@ -44,7 +39,6 @@ def build_profile(analyses: Sequence[VideoAnalysis], player_label: str) -> Playe
     path_counter: Dict[str, int] = {}
     per_video: Dict[str, Dict[str, float]] = {}
     quality_notes: List[str] = []
-    histogram = np.zeros((HIST_BINS, HIST_BINS), dtype=np.float64)
     blue_votes, red_votes = 0, 0
     champion_votes: Dict[str, List[float]] = {}
 
@@ -92,11 +86,6 @@ def build_profile(analyses: Sequence[VideoAnalysis], player_label: str) -> Playe
                 analysis.champion_confidence
             )
 
-        for sample in analysis.samples:
-            row = min(HIST_BINS - 1, max(0, int(sample.y * HIST_BINS)))
-            col = min(HIST_BINS - 1, max(0, int(sample.x * HIST_BINS)))
-            histogram[row, col] += 1.0
-
     total_time = sum(region_time_total.values()) or 1.0
     region_distribution = {r: seconds / total_time for r, seconds in region_time_total.items()}
 
@@ -104,7 +93,7 @@ def build_profile(analyses: Sequence[VideoAnalysis], player_label: str) -> Playe
     for metrics in per_video.values():
         metric_keys.update(metrics.keys())
 
-    # Time-weighted means: a 15-minute VOD should not be averaged equally
+    # Time-weighted means: a full-match VOD should not be averaged equally
     # with a 1-minute clip when both contribute metrics.
     weights = {
         key: max(0.0, metrics.get("analyzed_minutes", 0.0))
@@ -177,7 +166,6 @@ def build_profile(analyses: Sequence[VideoAnalysis], player_label: str) -> Playe
         metric_variability=variability,
         own_base="Blue" if blue_votes >= red_votes else "Red",
         quality_notes=quality_notes,
-        histogram=histogram.tolist(),
         champion=profile_champion,
         champion_confidence=profile_champion_confidence,
     )

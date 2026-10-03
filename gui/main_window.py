@@ -20,6 +20,7 @@ from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtWidgets import (
     QApplication,
     QFileDialog,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -59,68 +60,68 @@ STYLESHEET = """
 QWidget {
     font-family: 'Segoe UI', 'Arial', sans-serif;
     font-size: 13px;
-    color: #1E2A32;
+    color: #E6ECF7;
 }
-QMainWindow, QWidget#root, QDialog { background: #F3F5F9; }
+QMainWindow, QWidget#root, QDialog { background: #0B0F1A; }
 QToolTip {
-    background: #FFFFFF;
-    color: #1E2A32;
-    border: 1px solid #D8DEE6;
+    background: #182238;
+    color: #E6ECF7;
+    border: 1px solid #26324A;
     padding: 4px 6px;
 }
 QLabel#brand {
     font-size: 26px;
     font-weight: 800;
-    color: #2E6DB4;
+    color: #C8AA6E;
     letter-spacing: 3px;
 }
-QLabel#tagline { color: #6B7A88; font-size: 12px; }
+QLabel#tagline { color: #8B98AD; font-size: 12px; }
 QListWidget {
-    background: white;
-    border: 1px solid #D8DEE6;
+    background: #121A2B;
+    border: 1px solid #26324A;
     border-radius: 8px;
     padding: 4px;
 }
-QListWidget::item { padding: 7px; border-radius: 5px; color: #1E2A32; }
-QListWidget::item:hover { background: #EEF3F9; }
-QListWidget::item:selected { background: #DCEBF9; color: #16324E; }
+QListWidget::item { padding: 7px; border-radius: 5px; color: #E6ECF7; }
+QListWidget::item:hover { background: #182238; }
+QListWidget::item:selected { background: #1D3557; color: #EAF2FF; }
 QLineEdit, QTextEdit {
-    background: white;
-    color: #1E2A32;
-    border: 1px solid #C9D1D9;
+    background: #0F1626;
+    color: #E6ECF7;
+    border: 1px solid #26324A;
     border-radius: 6px;
     padding: 5px 8px;
-    selection-background-color: #CFE3F7;
-    selection-color: #16324E;
+    selection-background-color: #2563EB;
+    selection-color: #FFFFFF;
 }
 QLineEdit:focus, QTextEdit:focus {
-    border: 1px solid #2E6DB4;
+    border: 1px solid #3B82F6;
 }
 QLineEdit:disabled, QTextEdit:disabled {
-    background: #EEF1F4;
-    color: #AAB4BD;
+    background: #101828;
+    color: #5A6779;
 }
 QComboBox QAbstractItemView {
-    background: white;
-    color: #1E2A32;
-    border: 1px solid #D8DEE6;
-    selection-background-color: #DCEBF9;
-    selection-color: #16324E;
+    background: #121A2B;
+    color: #E6ECF7;
+    border: 1px solid #26324A;
+    selection-background-color: #1D3557;
+    selection-color: #EAF2FF;
 }
 QPushButton {
-    background: white;
-    color: #1E2A32;
-    border: 1px solid #C9D1D9;
+    background: #182238;
+    color: #E6ECF7;
+    border: 1px solid #26324A;
     border-radius: 6px;
     padding: 7px 14px;
     font-weight: 600;
 }
-QPushButton:hover { background: #F0F6FC; border-color: #2E6DB4; }
-QPushButton:pressed { background: #DCEBF9; }
-QPushButton:disabled { color: #AAB4BD; background: #EEF1F4; border-color: #E1E5EA; }
+QPushButton:hover { background: #1E2A42; border-color: #3B82F6; }
+QPushButton:pressed { background: #22314F; }
+QPushButton:disabled { color: #5A6779; background: #101828; border-color: #1C2740; }
 QPushButton#primary {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #3D84C7, stop:1 #2A6AAE);
+                                stop:0 #3B82F6, stop:1 #2563EB);
     color: white;
     border: none;
     border-radius: 7px;
@@ -129,50 +130,53 @@ QPushButton#primary {
 }
 QPushButton#primary:hover {
     background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                                stop:0 #3579BA, stop:1 #255FA0);
+                                stop:0 #5B9CFF, stop:1 #2E76E0);
 }
-QPushButton#primary:pressed { background: #22568F; }
-QPushButton#primary:disabled { background: #9FB3C4; }
-QPushButton#danger { color: #C0392B; }
+QPushButton#primary:pressed { background: #1D4ED8; }
+QPushButton#primary:disabled { background: #2B3B55; color: #8B98AD; }
+QPushButton#danger { color: #FF6B7A; }
 QProgressBar {
-    background: #E7EBF1;
-    border: 1px solid #D8DEE6;
+    background: #182238;
+    border: 1px solid #26324A;
     border-radius: 6px;
     height: 18px;
     text-align: center;
-    color: #1E2A32;
+    color: #E6ECF7;
     font-size: 11px;
 }
 QProgressBar::chunk {
     background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
-                                stop:0 #46B37A, stop:1 #3FA46A);
+                                stop:0 #37D399, stop:1 #2BB985);
     border-radius: 5px;
 }
 QPlainTextEdit {
-    background: #16202B;
-    color: #BFE3CC;
-    border: none;
+    background: #0D1420;
+    color: #9EE7B8;
+    border: 1px solid #1C2740;
     border-radius: 8px;
     font-family: Consolas, monospace;
     font-size: 11.5px;
     padding: 6px;
 }
-QTabWidget::pane { border: 1px solid #D8DEE6; background: white; border-radius: 8px; }
+QTabWidget::pane { border: 1px solid #26324A; background: #121A2B; border-radius: 8px; }
 QTabBar::tab {
-    background: #E7EBF1;
-    padding: 9px 18px;
+    background: #101828;
+    /* Compact: the old 9x18 padding made the 7 tabs need 1033 px, so on
+       1280-1366 laptops most tabs hid behind scroll arrows. */
+    padding: 7px 10px;
     margin-right: 2px;
     border-top-left-radius: 8px;
     border-top-right-radius: 8px;
     font-weight: 600;
-    color: #5A6B7B;
+    font-size: 11px;
+    color: #8B98AD;
 }
-QTabBar::tab:selected { background: white; color: #2E6DB4; }
-QTabBar::tab:hover:!selected { background: #EEF3F9; color: #2E6DB4; }
+QTabBar::tab:selected { background: #121A2B; color: #C8AA6E; border-top: 2px solid #C8AA6E; }
+QTabBar::tab:hover:!selected { background: #182238; color: #C8AA6E; }
 QGroupBox {
-    background: white;
-    color: #1E2A32;
-    border: 1px solid #D8DEE6;
+    background: #121A2B;
+    color: #E6ECF7;
+    border: 1px solid #26324A;
     border-radius: 8px;
     margin-top: 12px;
     padding: 16px 10px 10px 10px;
@@ -182,40 +186,40 @@ QGroupBox::title {
     subcontrol-origin: margin;
     left: 12px;
     padding: 0 6px;
-    color: #2E6DB4;
+    color: #C8AA6E;
 }
-QCheckBox { color: #1E2A32; spacing: 6px; }
-QCheckBox:disabled { color: #AAB4BD; }
+QCheckBox { color: #E6ECF7; spacing: 6px; }
+QCheckBox:disabled { color: #5A6779; }
 QHeaderView::section {
-    background: #2E6DB4;
+    background: #1D4ED8;
     color: white;
     padding: 6px;
     border: none;
     font-weight: 600;
 }
 QTableWidget {
-    background: white;
-    color: #1E2A32;
-    gridline-color: #EAEFF4;
-    alternate-background-color: #F7F9FB;
+    background: #121A2B;
+    color: #E6ECF7;
+    gridline-color: #1E2A42;
+    alternate-background-color: #16203A;
 }
-QStatusBar { background: #EAEFF4; color: #5A6B7B; }
-QScrollBar:vertical { background: #F3F5F9; width: 12px; }
-QScrollBar::handle:vertical { background: #C3CCD6; border-radius: 6px; min-height: 30px; }
-QScrollBar::handle:vertical:hover { background: #A9B6C2; }
-QScrollBar:horizontal { background: #F3F5F9; height: 12px; }
-QScrollBar::handle:horizontal { background: #C3CCD6; border-radius: 6px; min-width: 30px; }
-QScrollBar::handle:horizontal:hover { background: #A9B6C2; }
+QStatusBar { background: #0F1626; color: #8B98AD; }
+QScrollBar:vertical { background: #0B0F1A; width: 12px; }
+QScrollBar::handle:vertical { background: #26324A; border-radius: 6px; min-height: 30px; }
+QScrollBar::handle:vertical:hover { background: #3B4A66; }
+QScrollBar:horizontal { background: #0B0F1A; height: 12px; }
+QScrollBar::handle:horizontal { background: #26324A; border-radius: 6px; min-width: 30px; }
+QScrollBar::handle:horizontal:hover { background: #3B4A66; }
 QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; background: transparent; }
 QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 QMenu {
-    background: white;
-    color: #1E2A32;
-    border: 1px solid #D8DEE6;
+    background: #121A2B;
+    color: #E6ECF7;
+    border: 1px solid #26324A;
 }
 QMenu::item { padding: 6px 24px 6px 14px; }
-QMenu::item:selected { background: #DCEBF9; color: #16324E; }
-QMenu::separator { height: 1px; background: #E5E8E8; margin: 4px 8px; }
+QMenu::item:selected { background: #1D3557; color: #EAF2FF; }
+QMenu::separator { height: 1px; background: #26324A; margin: 4px 8px; }
 """
 
 
@@ -232,13 +236,36 @@ class MainWindow(QMainWindow):
         self._closing = False
 
         self.setWindowTitle("PRISM - Player Replay Intelligence and Strategic Modeling")
-        self.resize(1480, 900)
-        self.setMinimumSize(1120, 700)
         self.setAcceptDrops(True)
 
         self._build_ui()
+        self._fit_window_to_screen()
         self.setStatusMessage("Ready - add 5 gameplay videos of the same player, then analyse.")
         logger.info("PRISM window initialised")
+
+    def _fit_window_to_screen(self) -> None:
+        """Open fully on-screen at a size the current display can hold.
+
+        The window used to hardcode 1480x900 with a 1120x700 floor: on a
+        1366x768 laptop (about 728 px of usable height plus the title bar)
+        the bottom of the side panel - progress, cancel, log - was cut off,
+        and on 1280x720 the default size did not fit at all.
+        """
+        floor = self.minimumSizeHint()
+        # Explicit floor >= every layout minimum (incl. report cards), so a
+        # shrunken window can never clip content; height tracks the layout.
+        self.setMinimumSize(max(floor.width(), 1000), floor.height())
+        screen = self.screen() or QGuiApplication.primaryScreen()
+        avail = screen.availableGeometry() if screen is not None else None
+        if avail is None:
+            self.resize(1480, 900)
+            return
+        width = max(min(1480, avail.width() - 24), self.minimumWidth())
+        height = max(min(900, avail.height() - 48), self.minimumHeight())
+        self.resize(width, height)
+        frame = self.frameGeometry()
+        frame.moveCenter(avail.center())
+        self.move(frame.topLeft())
 
     # ----------------------------------------------------------------- UI ---
     def _build_ui(self) -> None:
@@ -268,9 +295,12 @@ class MainWindow(QMainWindow):
 
     def _build_side_panel(self) -> QWidget:
         panel = QWidget()
-        panel.setFixedWidth(360)
+        # Resizable in the splitter (it used to be fixed at 360, which made
+        # the handle immovable) but bounded so the report area keeps room.
+        panel.setMinimumWidth(340)
+        panel.setMaximumWidth(520)
         layout = QVBoxLayout(panel)
-        layout.setSpacing(8)
+        layout.setSpacing(6)
 
         brand = QLabel("PRISM")
         brand.setObjectName("brand")
@@ -282,11 +312,14 @@ class MainWindow(QMainWindow):
 
         self.video_list = QListWidget()
         self.video_list.setSelectionMode(QListWidget.ExtendedSelection)
-        self.video_list.setMinimumHeight(170)
+        # Minimums kept low so the whole panel fits a 720p laptop (the old
+        # 170/150 floors pushed the window minimum past its usable height).
+        self.video_list.setMinimumHeight(100)
         layout.addWidget(self.video_list, stretch=3)
 
         file_buttons = QHBoxLayout()
-        self.add_btn = QPushButton("Add Videos")
+        self.add_btn = QPushButton("Add")
+        self.add_btn.setToolTip("Add gameplay videos (MP4, MKV, AVI, MOV)")
         self.add_btn.clicked.connect(self.add_videos)
         self.remove_btn = QPushButton("Remove")
         self.remove_btn.setProperty("class", "danger")
@@ -298,7 +331,8 @@ class MainWindow(QMainWindow):
         layout.addLayout(file_buttons)
 
         hint = QLabel("Supported: MP4, MKV, AVI, MOV - drag & drop works too.")
-        hint.setStyleSheet("color:#6B7A88; font-size:11px;")
+        hint.setWordWrap(True)  # unwrapped this needed 594 px in a 342 px panel
+        hint.setStyleSheet("color:#8B98AD; font-size:11px;")
         layout.addWidget(hint)
 
         self.analyse_btn = QPushButton("Analyse Player")
@@ -306,7 +340,10 @@ class MainWindow(QMainWindow):
         self.analyse_btn.clicked.connect(self.start_analysis)
         layout.addWidget(self.analyse_btn)
 
-        action_row = QHBoxLayout()
+        # Two per row: Settings+Export PDF need 431 px side by side, which
+        # overflowed the 342 px panel and clipped the Outputs button.
+        action_grid = QGridLayout()
+        action_grid.setSpacing(8)
         self.settings_btn = QPushButton("Settings")
         self.settings_btn.clicked.connect(self.open_settings)
         self.export_btn = QPushButton("Export PDF")
@@ -314,9 +351,10 @@ class MainWindow(QMainWindow):
         self.export_btn.clicked.connect(self.export_pdf)
         open_btn = QPushButton("Outputs")
         open_btn.clicked.connect(self.open_outputs)
-        for button in (self.settings_btn, self.export_btn, open_btn):
-            action_row.addWidget(button)
-        layout.addLayout(action_row)
+        action_grid.addWidget(self.settings_btn, 0, 0)
+        action_grid.addWidget(self.export_btn, 0, 1)
+        action_grid.addWidget(open_btn, 1, 0)
+        layout.addLayout(action_grid)
 
         self.clips_btn = QPushButton("Export Roam Clips")
         self.clips_btn.setEnabled(False)
@@ -330,7 +368,7 @@ class MainWindow(QMainWindow):
 
         self.stage_label = QLabel("Idle")
         self.stage_label.setWordWrap(True)
-        self.stage_label.setStyleSheet("color:#566573; font-size:12px;")
+        self.stage_label.setStyleSheet("color:#8B98AD; font-size:12px;")
         layout.addWidget(self.stage_label)
 
         self.cancel_btn = QPushButton("Cancel analysis")
@@ -341,7 +379,7 @@ class MainWindow(QMainWindow):
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(800)
-        self.log.setMinimumHeight(150)
+        self.log.setMinimumHeight(90)
         layout.addWidget(self.log, stretch=2)
 
         return panel
@@ -481,7 +519,7 @@ class MainWindow(QMainWindow):
         self.log_line(f"ERROR: {message}")
         if self._closing:
             return  # never block application shutdown with a modal dialog
-        QMessageBox.critical(self, "Analysis failed", message)
+        self._show_box(QMessageBox.Critical, "Analysis failed", message)
 
     def on_worker_finished(self) -> None:
         self.analyse_btn.setEnabled(True)
@@ -550,8 +588,8 @@ class MainWindow(QMainWindow):
         self.log_line(f"PDF exported -> {path}")
         if self._closing:
             return  # closing: never raise a modal dialog over shutdown
-        answer = QMessageBox.information(
-            self,
+        answer = self._show_box(
+            QMessageBox.Information,
             "PDF exported",
             f"Report written to:\n{path}\n\nOpen it now?",
             QMessageBox.Open | QMessageBox.Close,
@@ -564,7 +602,7 @@ class MainWindow(QMainWindow):
         self.log_line(f"ERROR: {message}")
         if self._closing:
             return
-        QMessageBox.critical(self, "PDF export failed", message)
+        self._show_box(QMessageBox.Critical, "PDF export failed", message)
 
     def export_clips(self) -> None:
         if self.report is None:
@@ -595,8 +633,8 @@ class MainWindow(QMainWindow):
         self.log_line(f"{count} roam clip(s) -> {config.CLIPS_DIR}")
         if self._closing:
             return  # closing: never raise a modal dialog over shutdown
-        answer = QMessageBox.information(
-            self,
+        answer = self._show_box(
+            QMessageBox.Information,
             "Clips exported",
             f"{count} clip(s) written to:\n{config.CLIPS_DIR}\n\nOpen the folder now?",
             QMessageBox.Open | QMessageBox.Close,
@@ -609,7 +647,7 @@ class MainWindow(QMainWindow):
         self.log_line(f"ERROR: {message}")
         if self._closing:
             return
-        QMessageBox.critical(self, "Clip export failed", message)
+        self._show_box(QMessageBox.Critical, "Clip export failed", message)
 
     def open_clips_dir(self) -> None:
         config.ensure_directories()
@@ -688,3 +726,21 @@ class MainWindow(QMainWindow):
 
     def setStatusMessage(self, message: str) -> None:  # noqa: N802 - Qt API
         self.statusBar().showMessage(message)
+
+    def _show_box(
+        self,
+        icon: QMessageBox.Icon,
+        title: str,
+        text: str,
+        buttons: QMessageBox.StandardButton = QMessageBox.Ok,
+    ) -> int:
+        """Show a message box whose text wraps instead of widening.
+
+        Failure messages embed absolute paths; a 150-character unbroken path
+        made the static helpers size the box at 1623 px - wider than common
+        laptops, pushing the default button off-screen.
+        """
+        box = QMessageBox(icon, title, text, buttons, self)
+        for label in box.findChildren(QLabel):
+            label.setWordWrap(True)
+        return int(box.exec())

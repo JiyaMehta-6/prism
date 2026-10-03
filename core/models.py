@@ -10,8 +10,9 @@ from __future__ import annotations
 import json
 import math
 import os
+import re
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 REGIONS: List[str] = [
     "Base",
@@ -178,13 +179,15 @@ class Insight:
 
 @dataclass
 class TimelineWindow:
-    """Behavioural summary for one slice of the early game."""
+    """Behavioural summary for one slice of the analysed game."""
 
     start: float
     end: float
     label: str
     summary: str
     confidence: float
+    # LoL phase of this window's start minute: Early / Mid / Late / End.
+    phase: str = ""
     region_distribution: Dict[str, float] = field(default_factory=dict)
     aggression_index: float = 0.0
     kills: int = 0
@@ -225,7 +228,6 @@ class PlayerProfile:
     metric_variability: Dict[str, float] = field(default_factory=dict)
     own_base: str = "Blue"
     quality_notes: List[str] = field(default_factory=list)
-    histogram: List[List[float]] = field(default_factory=list)
     champion: Optional[str] = None
     champion_confidence: float = 0.0
 
@@ -258,8 +260,39 @@ class AnalysisReport:
 
 def _clock(seconds: float) -> str:
     total = int(max(0.0, seconds))
-    minutes, secs = divmod(total, 60)
+    minutes, secs = divmod(int(total), 60)
     return f"{minutes:02d}:{secs:02d}"
+
+
+_SCORE_PAREN = re.compile(r"\s*\(\d+(?:\.\d+)?/10\)")
+_SCORE_PREFIX = re.compile(r":\s*\d+(?:\.\d+)?/10\s*-\s*")
+_NUMBER = re.compile(r"\d+(?:\.\d+)?")
+
+
+def strip_axis_scores(text: str) -> str:
+    """Drop ``(n.n/10)``-style score citations from prose.
+
+    Axis scores have one owner - the fingerprint score table. Narrative text
+    (section summaries, benchmark notes) explains what a score means without
+    restating it, so no number is printed in two places.
+    """
+    return _SCORE_PREFIX.sub(" - ", _SCORE_PAREN.sub("", text))
+
+
+def fresh_evidence(detail: str, items: Sequence[str]) -> List[str]:
+    """Evidence items whose numbers are not already stated in ``detail``.
+
+    Insight cards narrate their numbers in the detail text; itemising the
+    same values again as evidence bullets would print them twice. Items
+    without numbers (qualitative evidence) are always kept.
+    """
+    stated = {round(float(token), 1) for token in _NUMBER.findall(detail)}
+    fresh: List[str] = []
+    for item in items:
+        numbers = {round(float(token), 1) for token in _NUMBER.findall(item)}
+        if not numbers or numbers - stated:
+            fresh.append(item)
+    return fresh
 
 
 def save_json(path: str, payload: Any) -> None:

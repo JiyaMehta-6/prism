@@ -25,7 +25,7 @@ logger = get_logger("objectives")
 
 @dataclass
 class ObjectivesAnalysis:
-    """Objective involvement estimate for the early game."""
+    """Objective involvement estimate for the analysed match."""
 
     score: float
     dragon_fraction: float
@@ -83,7 +83,7 @@ def analyze_objectives(
             "consistent with plate pressure or early sieges."
         )
     elif tower_fraction < 0.08:
-        notes.append("Limited presence around outer turrets in the first 15 minutes.")
+        notes.append("Limited presence around outer turrets during the analysed match.")
     if river_fraction > 0.15:
         notes.append(
             f"Strong river presence ({river_fraction * 100:.0f}%) - the approach corridor "
@@ -123,5 +123,5 @@ def _summarise(score: float, pit_fraction: float, tower_fraction: float) -> str:
         )
     return (
         f"Low objective focus ({score:.1f}/10): limited time around dragon, herald and "
-        "turret zones in the first 15 minutes."
+        "turret zones during the analysed match."
     )

@@ -54,7 +54,7 @@ def extract_kill_events(
     """Turn scoreboard readings into team-kill events (game time).
 
     ``offset`` maps video time to game time (``game = video + offset``);
-    ``window_end`` drops anything beyond the analysed early game; roaming
+    ``window_end`` drops anything beyond the analysed match; roaming
     events are only used to count how many own-team kills happened while the
     player was rotating.
     """

@@ -35,7 +35,7 @@ def main() -> int:
 
     from PySide6.QtCore import QLockFile, Qt
     from PySide6.QtGui import QColor, QFont, QPalette
-    from PySide6.QtWidgets import QApplication, QMessageBox
+    from PySide6.QtWidgets import QApplication, QLabel, QMessageBox
 
     from gui.main_window import STYLESHEET, MainWindow
 
@@ -46,12 +46,17 @@ def main() -> int:
         )
         traceback.print_exception(exc_type, exc, tb)
         try:
-            QMessageBox.critical(
-                None,
+            # Instance + word wrap: exception strings can embed long absolute
+            # paths, which made static helpers size the box past the screen.
+            box = QMessageBox(
+                QMessageBox.Critical,
                 "PRISM - unexpected error",
                 f"{exc_type.__name__}: {exc}\n\n"
                 "Details were written to logs/analysis.log.",
             )
+            for label in box.findChildren(QLabel):
+                label.setWordWrap(True)
+            box.exec()
         except Exception:  # pragma: no cover - GUI may be gone
             pass
 
@@ -65,31 +70,31 @@ def main() -> int:
     app.setOrganizationName("PRISM")
     app.setStyle("Fusion")
 
-    # PRISM is a light-themed app: without this, Windows dark mode hands Qt a
-    # dark palette and the light stylesheet turns into dark-on-dark text
-    # (the Settings dialog was unreadable). Force a light scheme first, then
-    # pin an explicit palette so no widget can inherit system-dark colors.
+    # PRISM uses a dark "Hextech esports" theme: pin the Qt scheme to Dark and
+    # an explicit palette so a Windows light-mode host cannot hand Qt a light
+    # palette (dark-on-light in the Settings dialog) and a Windows dark-mode
+    # host cannot override our widget colors with system grays.
     try:
-        app.styleHints().setColorScheme(Qt.ColorScheme.Light)
+        app.styleHints().setColorScheme(Qt.ColorScheme.Dark)
     except AttributeError:  # pragma: no cover - older Qt
         pass
     palette = QPalette()
-    palette.setColor(QPalette.Window, QColor("#F3F5F9"))
-    palette.setColor(QPalette.WindowText, QColor("#1E2A32"))
-    palette.setColor(QPalette.Base, QColor("#FFFFFF"))
-    palette.setColor(QPalette.AlternateBase, QColor("#F7F9FB"))
-    palette.setColor(QPalette.ToolTipBase, QColor("#FFFFFF"))
-    palette.setColor(QPalette.ToolTipText, QColor("#1E2A32"))
-    palette.setColor(QPalette.Text, QColor("#1E2A32"))
-    palette.setColor(QPalette.PlaceholderText, QColor("#96A2AE"))
-    palette.setColor(QPalette.Button, QColor("#FFFFFF"))
-    palette.setColor(QPalette.ButtonText, QColor("#1E2A32"))
-    palette.setColor(QPalette.Highlight, QColor("#2E6DB4"))
+    palette.setColor(QPalette.Window, QColor("#0B0F1A"))
+    palette.setColor(QPalette.WindowText, QColor("#E6ECF7"))
+    palette.setColor(QPalette.Base, QColor("#121A2B"))
+    palette.setColor(QPalette.AlternateBase, QColor("#16203A"))
+    palette.setColor(QPalette.ToolTipBase, QColor("#182238"))
+    palette.setColor(QPalette.ToolTipText, QColor("#E6ECF7"))
+    palette.setColor(QPalette.Text, QColor("#E6ECF7"))
+    palette.setColor(QPalette.PlaceholderText, QColor("#5A6779"))
+    palette.setColor(QPalette.Button, QColor("#182238"))
+    palette.setColor(QPalette.ButtonText, QColor("#E6ECF7"))
+    palette.setColor(QPalette.Highlight, QColor("#2563EB"))
     palette.setColor(QPalette.HighlightedText, QColor("#FFFFFF"))
-    palette.setColor(QPalette.Link, QColor("#2E6DB4"))
-    palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor("#AAB4BD"))
-    palette.setColor(QPalette.Disabled, QPalette.Text, QColor("#AAB4BD"))
-    palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#AAB4BD"))
+    palette.setColor(QPalette.Link, QColor("#3B82F6"))
+    palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor("#5A6779"))
+    palette.setColor(QPalette.Disabled, QPalette.Text, QColor("#5A6779"))
+    palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor("#5A6779"))
     app.setPalette(palette)
 
     app.setStyleSheet(STYLESHEET)

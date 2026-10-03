@@ -59,8 +59,8 @@ Dependency rule: **upper layers may import lower layers, never the reverse.**
 | `logger.py` | Rotating file + console logging, `StageTimer` performance markers |
 | `video_loader.py` | Format allow-list, OpenCV probing, never-raising validation |
 | `frame_extractor.py` | Streamed sampling at N fps using `grab()`/`retrieve()` (constant memory); session-cached, benchmark-gated hardware decode |
-| `behavior_engine.py` | Per-video pipeline: track -> interpolate -> regions -> clock -> roams -> metrics |
-| `profiler.py` | Merge N video analyses into one `PlayerProfile` (region time, transitions, variability, histogram) |
+| `behavior_engine.py` | Per-video pipeline: track -> interpolate -> regions -> clock -> roams -> deaths + awareness micro-metrics -> metrics |
+| `profiler.py` | Merge N video analyses into one `PlayerProfile` (region time, transitions, variability) |
 | `fingerprint_engine.py` | Seven-axis 0-10 fingerprint with weights, confidence and evidence strings |
 
 ### vision/
@@ -81,20 +81,22 @@ Dependency rule: **upper layers may import lower layers, never the reverse.**
 | `aggression.py` | `AggressionAnalysis` (forward frequency, engagement tendency, risk exposure, roam frequency) |
 | `roaming.py` | `RoamingAnalysis` (rate, duration, destinations, routes, timing buckets) |
 | `objectives.py` | `ObjectivesAnalysis` (pit presence, timing buckets, turret proximity, objective rotations) |
+| `deaths.py` | Vision-only death inference: marker dropout gaps that end at the own fountain, scoreboard-confirmed (`DeathInference`) |
+| `awareness.py` | Micro-metrics: unwarded forward share (vision-adjusted risk) and reaction latency after scoreboard kills |
 | `pressure.py` | `PressureAnalysis` (drift, burst growth, stress episodes, recovery ratio) |
 | `consistency.py` | `ConsistencyAnalysis` (metric dispersion, Jensen-Shannon regional overlap, pairwise table) |
 | `similarity.py` | Behavioural vectors, snapshot persistence, cosine similarity ranking |
 | `benchmark.py` | Per-axis mid-rank percentiles vs other stored profiles (needs `n >= 3`, excludes the analysed label) |
 | `archetypes.py` | Rule-based classification with margin-based confidence and reasons |
 | `insights.py` | Confidence-scored findings + suggestions + evidence |
-| `timeline.py` | Segmented early-game windows with labels and confidence |
+| `timeline.py` | Segmented match windows (Early/Mid/Late/End phases) with labels and confidence |
 
 ### reports/ & visualizations/
 | File | Responsibility |
 | --- | --- |
 | `pdf_export.py` | Nine-section ReportLab document; missing charts are skipped, not fatal |
 | `clips.py` | Short re-encoded MP4 clips around each detected roam (OpenCV writer, fully offline) |
-| `charts.py` | Headless Agg charts saved to `outputs/charts/` (radar, heatmap, regions, timeline, transitions, consistency, similarity, bars) |
+| `charts.py` | Headless Agg charts saved to `outputs/charts/` (radar, regions, timeline, transitions, consistency, similarity, bars) |
 
 ## 4. Data flow
 
@@ -108,10 +110,12 @@ VideoInfo ──► BehaviorEngine.analyze()      core/behavior_engine
                  ├─ FrameExtractor.iter_frames()  core/frame_extractor  (streamed)
                  ├─ MinimapTracker.process()      vision/minimap_tracker  → (x, y, conf)
                  ├─ OCREngine.read_game_clock()   vision/ocr_engine      → clock seconds
-                 ├─ interpolate + window filter
-                 ├─ RegionMapper.classify()       vision/region_mapper   → region labels
-                 ├─ roam detection
-                 └─ metrics
+                  ├─ interpolate + window filter
+                  ├─ RegionMapper.classify()       vision/region_mapper   → region labels
+                  ├─ roam detection
+                  ├─ detect_deaths()               analytics/deaths       → death events
+                  ├─ awareness micro-metrics       analytics/awareness    → unwarded / reaction
+                  └─ metrics
    ▼
 VideoAnalysis (per video)
    │  build_profile()                      core/profiler

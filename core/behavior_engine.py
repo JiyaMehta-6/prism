@@ -8,7 +8,9 @@ For one gameplay recording PRISM:
 4. optionally reads the match clock with OCR to align video time to game time,
 5. interpolates short detection gaps,
 6. maps every position to a behavioural region,
-7. derives transitions, roam events and per-video metrics.
+7. derives transitions, roam events and per-video metrics,
+8. infers deaths from marker dropouts and computes vision/event micro-metrics
+   (forward time without nearby vision, reaction to scoreboard kills).
 
 Progress is reported through an ``on_progress(percent, stage)`` callback so the
 GUI thread always stays informed - and never blocked.
@@ -21,6 +23,8 @@ import statistics
 from collections import Counter
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
+from analytics.awareness import reaction_after_kills, unwarded_forward_fraction
+from analytics.deaths import detect_deaths
 from analytics.events import extract_kill_events, kills_during_roams, own_team_kills
 from core.config import Settings
 from core.frame_extractor import FrameExtractor
@@ -183,11 +187,79 @@ class BehaviorEngine:
                     events.extend(
                         self._build_ward_events(raw_wards, applied_offset)
                     )
-                    events.sort(key=lambda e: e.time)
                     ward_count = sum(1 for e in events if e.kind == "ward")
                     duration_minutes = max(metrics.get("analyzed_minutes", 0.0), 1e-6)
                     metrics["ward_blooms"] = float(ward_count)
                     metrics["ward_blooms_per_min"] = ward_count / duration_minutes
+
+                    # Vision-adjusted risk: forward time with no recent ward
+                    # bloom anywhere nearby ("pushing without vision").
+                    forward_mask = [
+                        self.mapper.forward_bias(s.x, s.y, own_base) > 0.35
+                        for s in samples
+                    ]
+                    unwarded = unwarded_forward_fraction(
+                        samples,
+                        forward_mask,
+                        [(t + applied_offset, x, y) for t, x, y in raw_wards],
+                    )
+                    if unwarded is not None:
+                        metrics["unwarded_forward_fraction"] = unwarded
+
+                kill_times = [e.time for e in events if e.kind == "kill"]
+
+                # Death inference (pure vision): the marker vanishes away
+                # from base and the first reappearance is the own fountain;
+                # scoreboard kill deltas corroborate when OCR was available.
+                base_xy = (
+                    self.mapper.blue_base if own_base == "Blue" else self.mapper.red_base
+                )
+                deaths = detect_deaths(samples, base_xy, kill_times)
+                for death in deaths:
+                    events.append(
+                        GameEvent(
+                            time=death.time,
+                            kind="death",
+                            team=own_base,
+                            detail=(
+                                f"Marker lost for {death.off_map_sec:.0f}s, "
+                                "respawned at Base"
+                                + (" (scoreboard confirmed)" if death.confirmed else "")
+                            ),
+                            confidence=round(death.confidence, 2),
+                        )
+                    )
+                if deaths:
+                    minutes = max(metrics.get("analyzed_minutes", 0.0), 1e-6)
+                    metrics["deaths"] = float(len(deaths))
+                    metrics["death_rate_per_min"] = len(deaths) / minutes
+                    metrics["death_off_map_median"] = statistics.median(
+                        [d.off_map_sec for d in deaths]
+                    )
+                    metrics["death_confirmed_fraction"] = (
+                        sum(1 for d in deaths if d.confirmed) / len(deaths)
+                    )
+                    logger.info(
+                        "%s: %d inferred death(s), %d scoreboard-confirmed",
+                        info.name, len(deaths),
+                        sum(1 for d in deaths if d.confirmed),
+                    )
+
+                # Reaction to scoreboard kills: how fast the player changes
+                # speed or heading after a kill appears on the HUD.
+                if kill_times:
+                    eligible, latencies = reaction_after_kills(
+                        samples,
+                        kill_times,
+                        window_end=self.settings.max_analysis_minutes * 60.0,
+                    )
+                    if eligible:
+                        metrics["reaction_events_eligible"] = float(eligible)
+                        metrics["reaction_response_rate"] = len(latencies) / eligible
+                        metrics["reaction_latency_median"] = (
+                            statistics.median(latencies) if latencies else 0.0
+                        )
+                events.sort(key=lambda e: e.time)
 
                 # PRISM only *claims* a champion when the aggregated match
                 # clears the confidence gate; otherwise the field stays empty.
@@ -236,7 +308,7 @@ class BehaviorEngine:
             readings,
             own_base,
             offset=offset,
-            window_end=self.settings.early_game_minutes * 60.0,
+            window_end=self.settings.max_analysis_minutes * 60.0,
             roam_events=roam_events,
         )
 
@@ -250,7 +322,7 @@ class BehaviorEngine:
         later is one placement (or one champion pausing on the same camp),
         not a new ward.
         """
-        limit = self.settings.early_game_minutes * 60.0
+        limit = self.settings.max_analysis_minutes * 60.0
         events: List[GameEvent] = []
         kept: List[Tuple[float, float, float]] = []
         for video_time, x, y in raw_wards:
@@ -305,7 +377,7 @@ class BehaviorEngine:
         attempts = 0
         last_ocr_time = -1e9
         ocr_budget = self.settings.ocr_max_calls_per_video
-        window_seconds = self.settings.early_game_minutes * 60.0
+        window_seconds = self.settings.max_analysis_minutes * 60.0
         known_duration = info.duration_sec if info.duration_sec > 0 else window_seconds
         expected = max(1.0, min(known_duration, window_seconds) * self.settings.sample_fps)
         processed = 0
@@ -316,7 +388,7 @@ class BehaviorEngine:
         for frame_index, timestamp, frame in extractor.iter_frames(info.path):
             self._check_cancel()
             # Stop when the *game* window is covered, not just the video window,
-            # so a negative clock offset cannot cut the early game short.
+            # so a negative clock offset cannot cut the analysed span short.
             if timestamp > window_seconds - offset_estimate + tolerance:
                 break
 
@@ -376,7 +448,7 @@ class BehaviorEngine:
                         if len(offsets) >= 2 and max(offsets) - min(offsets) <= 60.0:
                             # Only a *consistent* multi-reading estimate may
                             # shorten the scan; a single outlier must never
-                            # truncate the early game (clamped as a second line
+                            # truncate the scan (clamped as a second line
                             # of defence).
                             candidate = statistics.median(offsets)
                             offset_estimate = max(-600.0, min(600.0, candidate))
@@ -485,8 +557,8 @@ class BehaviorEngine:
         return median
 
     def _restrict_to_window(self, samples: List[PositionSample]) -> List[PositionSample]:
-        """Keep only samples inside the configured early-game window."""
-        limit = self.settings.early_game_minutes * 60.0
+        """Keep only samples inside the configured analysis window."""
+        limit = self.settings.max_analysis_minutes * 60.0
         kept = [s for s in samples if 0.0 <= s.effective_time <= limit]
         dropped = len(samples) - len(kept)
         if dropped:

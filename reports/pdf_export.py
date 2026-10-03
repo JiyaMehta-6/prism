@@ -5,8 +5,9 @@ fingerprint with confidence scores, every chart, the tactical timeline,
 behavioural insights, improvement recommendations and the similarity analysis.
 
 The exporter is defensive: missing charts are skipped rather than aborting the
-document, and every section includes confidence figures so conclusions are
-never presented without their evidence base.
+document, and nothing is printed twice - scores live in the fingerprint table,
+advice in the insights and recommendations sections, narrative prose links to
+numbers instead of restating them (see :func:`core.models.strip_axis_scores`).
 """
 
 from __future__ import annotations
@@ -34,16 +35,16 @@ from reportlab.platypus import (
 
 from core.config import OUTPUT_DIR
 from core.logger import get_logger
-from core.models import FINGERPRINT_METRICS, AnalysisReport
+from core.models import FINGERPRINT_METRICS, AnalysisReport, fresh_evidence, strip_axis_scores
 
 logger = get_logger("pdf_export")
 
-PRIMARY = colors.HexColor("#2F6FB2")
-ACCENT = colors.HexColor("#E8833A")
+PRIMARY = colors.HexColor("#1D4ED8")
+ACCENT = colors.HexColor("#C8AA6E")
 LIGHT = colors.HexColor("#EEF3F8")
 DARK = colors.HexColor("#1C2833")
-SUCCESS = colors.HexColor("#3FA46A")
-RISK = colors.HexColor("#C4453C")
+SUCCESS = colors.HexColor("#1E9E6A")
+RISK = colors.HexColor("#DC3F4F")
 
 
 class PdfCancelled(Exception):
@@ -173,6 +174,15 @@ def _cover(story: List, report: AnalysisReport, styles: dict) -> None:
         f"Behavioural Intelligence Report: <b>{_esc(report.profile.player_label)}</b>",
         styles["subtitle"]))
 
+    span_end = report.timeline[-1].end if report.timeline else 45.0 * 60
+    phases_seen: list = []
+    for window in report.timeline:
+        if window.phase and window.phase not in phases_seen:
+            phases_seen.append(window.phase)
+    span_text = f"0-{span_end / 60:g} minutes"
+    if phases_seen:
+        span_text += f" ({' / '.join(phases_seen)} phases)"
+
     rows = [
         ["Generated", report.generated_at or datetime.now().strftime("%Y-%m-%d %H:%M")],
         ["Videos analysed", str(report.profile.video_count)],
@@ -180,7 +190,7 @@ def _cover(story: List, report: AnalysisReport, styles: dict) -> None:
         ["Detection quality", f"{report.profile.detection_rate * 100:.0f}%"],
         ["Primary archetype", report.headline],
         ["Own base inferred", report.profile.own_base],
-        ["Analysis window", "0-15 minutes (early game)"],
+        ["Analysis window", span_text],
         ["Data source", "Gameplay video only (no APIs, no telemetry)"],
     ]
     if report.profile.champion:
@@ -245,15 +255,9 @@ def _executive_summary(story: List, report: AnalysisReport, styles: dict) -> Non
             f"(portrait match confidence {profile.champion_confidence * 100:.0f}%)."
         )
     lines += [
-        (
-            "Dominant traits: "
-            + ", ".join(
-                f"{metric} {fingerprint.scores.get(metric, 0):.1f}/10"
-                for metric in top_metrics
-            )
-            + "."
-        ),
-        f"Early-game rotation rate: <b>{profile.roam_rate:.2f} roams per minute</b>; "
+        # Metric names only: the scores themselves appear once, in section 2.
+        "Dominant traits: " + ", ".join(top_metrics) + ".",
+        f"Rotation rate: <b>{profile.roam_rate:.2f} roams per minute</b>; "
         f"primary region: <b>{primary_region}</b>.",
     ]
     for line in lines:
@@ -262,14 +266,8 @@ def _executive_summary(story: List, report: AnalysisReport, styles: dict) -> Non
     if top_insights:
         story.append(Spacer(1, 0.2 * cm))
         story.append(Paragraph("Top findings", styles["h2"]))
-        rows = [["Finding", "Confidence", "Action"]]
         for insight in top_insights:
-            rows.append([
-                Paragraph(_esc(insight.title), styles["cell"]),
-                Paragraph(f"{insight.confidence * 100:.0f}%", styles["cell"]),
-                Paragraph(_esc(insight.suggestion), styles["cell"]),
-            ])
-        story.append(_styled_table(rows, [6.4 * cm, 2.4 * cm, 7.9 * cm], styles))
+            story.append(Paragraph(f"• {_esc(insight.title)}", styles["body"]))
 
     if profile.quality_notes:
         story.append(Paragraph("Data quality notes", styles["h2"]))
@@ -279,19 +277,16 @@ def _executive_summary(story: List, report: AnalysisReport, styles: dict) -> Non
     if report.sections:
         story.append(Spacer(1, 0.3 * cm))
         story.append(Paragraph("Behavioural analytics", styles["h2"]))
-        section_rows = [["Area", "Score", "Confidence", "Summary"]]
+        # Scores and confidence are section 2's job; here only the reading.
+        section_rows = [["Area", "Summary"]]
         for name, section in report.sections.items():
-            score = getattr(section, "score", None)
-            conf = getattr(section, "confidence", None)
-            summary = getattr(section, "summary", "")
+            summary = strip_axis_scores(getattr(section, "summary", ""))
             section_rows.append([
                 name,
-                f"{score:.1f} / 10" if score is not None else "-",
-                f"{conf * 100:.0f}%" if conf is not None else "-",
                 Paragraph(_esc(summary), styles["cell"]),
             ])
         story.append(
-            _styled_table(section_rows, [3.0 * cm, 2.2 * cm, 2.4 * cm, 9.1 * cm], styles)
+            _styled_table(section_rows, [3.4 * cm, 13.3 * cm], styles)
         )
 
 
@@ -318,11 +313,8 @@ def _fingerprint_section(story: List, report: AnalysisReport, styles: dict) -> N
             Paragraph(_esc(report.fingerprint.contributions.get(metric, "-")), styles["cell"]),
         ])
     story.append(_styled_table(rows, [3.0 * cm, 2.2 * cm, 2.5 * cm, 9.0 * cm], styles))
-
-    bars = report.chart_paths.get("insights")
-    if bars and os.path.isfile(bars):
-        story.append(Spacer(1, 0.4 * cm))
-        story.append(Image(bars, width=15.5 * cm, height=8.4 * cm))
+    # The bars chart is intentionally omitted: radar + table already carry
+    # the seven scores, and a third display would repeat them.
 
 
 def _archetype_section(story: List, report: AnalysisReport, styles: dict) -> None:
@@ -347,27 +339,16 @@ def _archetype_section(story: List, report: AnalysisReport, styles: dict) -> Non
 
 
 def _visual_section(story: List, report: AnalysisReport, styles: dict) -> None:
-    story.append(Paragraph("4. Movement Heatmaps and Region Distribution", styles["h1"]))
-    heatmap = report.chart_paths.get("heatmap")
+    story.append(Paragraph("4. Region Distribution and Transitions", styles["h1"]))
     regions = report.chart_paths.get("regions")
-    if heatmap and os.path.isfile(heatmap):
-        story.append(Image(heatmap, width=12.4 * cm, height=12.4 * cm))
-        story.append(Paragraph(
-            "Heatmap of every tracked position over the 0-15 minute window. "
-            "Brighter cells indicate longer occupancy.", styles["small"],
-        ))
     if regions and os.path.isfile(regions):
-        story.append(Spacer(1, 0.3 * cm))
         story.append(Image(regions, width=15.5 * cm, height=8.4 * cm))
 
     transitions = report.chart_paths.get("transitions")
     if transitions and os.path.isfile(transitions):
         story.append(Spacer(1, 0.3 * cm))
         story.append(Image(transitions, width=12.6 * cm, height=10.6 * cm))
-        story.append(Paragraph(
-            "Transition matrix: how often movement flows from one region to another.",
-            styles["small"],
-        ))
+        # No caption: the chart's own title says exactly this.
 
     consistency = report.chart_paths.get("consistency")
     if consistency and os.path.isfile(consistency):
@@ -382,8 +363,9 @@ def _visual_section(story: List, report: AnalysisReport, styles: dict) -> None:
 def _timeline_section(story: List, report: AnalysisReport, styles: dict) -> None:
     story.append(Paragraph("5. Tactical Timeline", styles["h1"]))
     story.append(Paragraph(
-        "The early game is segmented and labelled with the behavioural mode best "
-        "supported by the movement in that segment.",
+        "The match is segmented across its LoL phases (Early, Mid, Late, End) and "
+        "each segment is labelled with the behavioural mode best supported by the "
+        "movement in that segment.",
         styles["body"],
     ))
     timeline_chart = report.chart_paths.get("timeline")
@@ -391,20 +373,21 @@ def _timeline_section(story: List, report: AnalysisReport, styles: dict) -> None
         story.append(Image(timeline_chart, width=15.5 * cm, height=7.9 * cm))
         story.append(Spacer(1, 0.3 * cm))
 
-    rows = [["Window", "Label", "Aggression", "Kills", "Confidence", "Summary"]]
+    # Aggression and confidence are annotated on the chart above; the table
+    # adds the game phase, kills count and the narrative summary.
+    rows = [["Window", "Game phase", "Label", "Kills", "Summary"]]
     for window in report.timeline:
         rows.append([
             f"{window.start_label}-{window.end_label}",
+            window.phase or "-",
             window.label,
-            f"{window.aggression_index:.1f}",
             f"{window.kills}",
-            f"{window.confidence * 100:.0f}%",
             Paragraph(_esc(window.summary), styles["cell"]),
         ])
     story.append(
         _styled_table(
             rows,
-            [2.3 * cm, 3.0 * cm, 1.9 * cm, 1.3 * cm, 2.1 * cm, 7.0 * cm],
+            [2.1 * cm, 1.6 * cm, 2.4 * cm, 1.1 * cm, 9.5 * cm],
             styles,
         )
     )
@@ -427,9 +410,10 @@ def _insight_section(story: List, report: AnalysisReport, styles: dict) -> None:
             ),
             Paragraph(_esc(insight.detail), styles["body"]),
         ]
-        if insight.evidence:
+        evidence = fresh_evidence(insight.detail, insight.evidence)
+        if evidence:
             block.append(Paragraph(
-                "Evidence: " + " | ".join(_esc(item) for item in insight.evidence),
+                "Evidence: " + " | ".join(_esc(item) for item in evidence),
                 styles["small"],
             ))
         block.append(Spacer(1, 0.25 * cm))
@@ -437,20 +421,19 @@ def _insight_section(story: List, report: AnalysisReport, styles: dict) -> None:
 
     story.append(PageBreak())
     story.append(Paragraph("7. Improvement Recommendations", styles["h1"]))
-    rows = [["#", "Finding", "Confidence", "Recommendation"]]
+    # Confidence is stated in section 6; here the action stands alone.
+    rows = [["#", "Finding", "Recommendation"]]
     for index, insight in enumerate(report.insights, start=1):
         rows.append([
             str(index),
             Paragraph(_esc(insight.title), styles["cell"]),
-            Paragraph(f"{insight.confidence * 100:.0f}%", styles["cell"]),
             Paragraph(_esc(insight.suggestion), styles["cell"]),
         ])
-    story.append(_styled_table(rows, [1.0 * cm, 5.4 * cm, 2.4 * cm, 8.0 * cm], styles))
+    story.append(_styled_table(rows, [1.0 * cm, 6.2 * cm, 9.5 * cm], styles))
 
 
 def _similarity_section(story: List, report: AnalysisReport, styles: dict) -> None:
     story.append(Paragraph("8. Similarity Analysis", styles["h1"]))
-    chart = report.chart_paths.get("similarity")
     if report.similarity:
         story.append(Paragraph(
             "Behavioural vectors (fingerprint + region occupancy + movement "
@@ -458,6 +441,8 @@ def _similarity_section(story: List, report: AnalysisReport, styles: dict) -> No
             "stored profiles.",
             styles["body"],
         ))
+        # The similarity bar chart is intentionally omitted: this table shows
+        # the same percentages together with their interpretation.
         rows = [["Profile", "Similarity", "Interpretation"]]
         for result in report.similarity:
             rows.append([
@@ -466,17 +451,12 @@ def _similarity_section(story: List, report: AnalysisReport, styles: dict) -> No
                 Paragraph(_esc(result.note), styles["cell"]),
             ])
         story.append(_styled_table(rows, [6.0 * cm, 3.0 * cm, 7.8 * cm], styles))
-        if chart and os.path.isfile(chart):
-            story.append(Spacer(1, 0.4 * cm))
-            story.append(Image(chart, width=15.0 * cm, height=7.5 * cm))
     else:
         story.append(Paragraph(
             "No comparable profiles are stored yet. Run PRISM on other players to "
             "build a behavioural comparison library.",
             styles["body"],
         ))
-        if chart and os.path.isfile(chart):
-            story.append(Image(chart, width=15.0 * cm, height=6.0 * cm))
 
 
 def _methodology(story: List, report: AnalysisReport, styles: dict) -> None:
@@ -494,8 +474,9 @@ def _methodology(story: List, report: AnalysisReport, styles: dict) -> None:
         "<b>Limitations:</b> vision, CS, KDA and kill events cannot be observed "
         "reliably from the minimap, so vision/objective scores are movement-based "
         "proxies with correspondingly reduced confidence.",
-        "<b>Scope:</b> analysis is restricted to the first 15 minutes, where "
-        "behavioural habits are most identifiable.",
+        "<b>Scope:</b> the whole match is analysed across its LoL phases "
+        "(Early, Mid, Late, End) up to the configured time cap - shorter "
+        "recordings simply end sooner.",
     ]
     for point in points:
         story.append(Paragraph(f"• {point}", styles["body"]))

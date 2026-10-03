@@ -22,15 +22,35 @@ actionable improvement findings.
 | Video-only behavioural analysis | A replay-file parser |
 | Useful for self-review, coaching, scouting | An opponent scouting service |
 
+## What makes PRISM different
+
+Most replay tools parse the same official files and reformat the same
+numbers. PRISM's distinctive capabilities come from *watching the game the
+way a spectator would* - every one of them is extracted from video pixels,
+with no telemetry of any kind:
+
+| Distinctive capability | What it means |
+| --- | --- |
+| **Vision-only death inference** | Deaths are counted from the minimap marker vanishing away from base and reappearing at your fountain, corroborated by scoreboard kill deltas - no death feed, no API (`analytics/deaths.py`). |
+| **Vision-adjusted risk** | "Pushing without vision": forward time with no recent ward bloom within 0.10 map units in the previous 120 s, scored directly into the fingerprint's Risk axis (`analytics/awareness.py`). |
+| **Reaction-to-kill forensics** | How fast you change pace or heading after a kill appears on the scoreboard - a median response latency in seconds per video. |
+| **Ward bloom tracking** | Stationary vision blooms in river/jungle/pit corridors are *detected from pixels* and feed the Vision axis - not read from a ward log. |
+| **Offline champion identity** | 64-bit perceptual hash of the HUD portrait against prefetched Data Dragon icons - no account, no API call. |
+| **Local peer benchmarking** | Your fingerprint ranked as percentiles against other players' stored profiles; the comparison set never leaves your disk. |
+| **Explainable evidence** | Every axis, archetype, insight and event ships with the numbers and thresholds that produced it. |
+| **Hard offline guarantee** | Tests run with networking blocked; nothing downloads unless you opt in with `PRISM_ALLOW_DOWNLOAD=1`. |
+
 ## Constraints honoured by the design
 
 - **Video only.** No Riot API, no match telemetry, no replay/JSON/CSV input,
   no manual annotation.
-- **100% free & offline.** No paid APIs, no cloud inference, no subscriptions.
-  Everything runs locally after installation (OpenCV, EasyOCR, scikit-learn,
-  Matplotlib, ReportLab, PySide6).
-- **Early game focus (0-15 min).** Where identifiable habits form: laning,
-  trading, roaming, vision, objective preparation, jungle interaction.
+- **100% free & offline.** No accounts, no logins, no fees, ever - no paid
+  APIs, no cloud inference, no subscriptions, no telemetry. Everything runs
+  locally after installation (OpenCV, EasyOCR, scikit-learn, Matplotlib,
+  ReportLab, PySide6).
+- **Full-match analysis (Early / Mid / Late / End).** The whole game is
+  segmented into LoL phases: laning, trading, roaming, vision, objective
+  play, teamfights and the end game.
 - **Native desktop GUI** built with **PySide6** (no Tkinter/Streamlit/Flask).
 - **Windows 10/11**, Python **3.12**, package manager **uv**, 16-32 GB RAM,
   dedicated GPU optional (CPU inference is the default).
@@ -52,6 +72,9 @@ actionable improvement findings.
   against prefetched Data Dragon icons) with a confidence claim gate.
 - **Ward/vision tracking** - stationary vision blooms in river/jungle/pit
   corridors become ward events feeding the Vision axis.
+- **Vision/event micro-metrics** - inferred deaths from marker dropouts,
+  unwarded forward time (vision-adjusted risk) and reaction latency after
+  scoreboard kills.
 - **Behavioural analytics** - aggression, roaming (timings, destinations,
   routes), objectives, pressure stability, consistency, similarity.
 - **Benchmark percentiles** - each fingerprint axis ranked against `>= 3`
@@ -62,8 +85,9 @@ actionable improvement findings.
   triggered it.
 - **Improvement insights** - finding + confidence + concrete suggestion +
   evidence.
-- **Tactical timeline** of the first 15 minutes.
-- **Visualisations** - fingerprint radar, position heatmap, region
+- **Tactical timeline** of the whole match, with every window tagged with
+  its game phase (Early / Mid / Late / End).
+- **Visualisations** - fingerprint radar, region
   distribution, transition matrix, timeline, consistency, similarity.
 - **PDF export** (ReportLab) and JSON export.
 - **Roam clip export** - short MP4 clips around every detected roam,
@@ -73,6 +97,8 @@ actionable improvement findings.
   benchmark-gated hardware-decode attempt on the first video.
 - **QThread-driven GUI** - the window never freezes; live progress, stage and
   log updates.
+- **Dark esports theme** - a Hextech-inspired navy/gold palette applied to
+  the window, tables and every chart.
 - **Rotating application log** at `logs/analysis.log`.
 
 ## Quick start
@@ -99,11 +125,12 @@ Full details, verification steps and troubleshooting: **[docs/INSTALLATION.md](d
 ## Usage
 
 1. Launch PRISM.
-2. **Add Videos** (or drag & drop) - select ~5 recordings of the same player.
-3. Adjust **Settings** if needed (sampling rate, early-game window, OCR, ROI).
+2. **Add** (or drag & drop) - select ~5 recordings of the same player.
+3. Adjust **Settings** if needed (sampling rate, max game time, OCR, ROI).
 4. Click **Analyse Player** and watch the progress/stage/log pane.
-5. Review the tabs: Overview, Fingerprint, Heatmaps, Timeline, Insights,
-   Similarity, Videos.
+5. Review the tabs: Overview (identity, KPIs, verdict), Fingerprint (scores
+   and what they mean), Positioning, Timeline, Insights, Similarity (vs
+   stored profiles), Videos. Every fact is shown once, in its owner tab.
 6. Click **Export PDF** to write `outputs/<player>_report.pdf`.
 7. Click **Export Roam Clips** to write short MP4 clips of every detected
    roam to `outputs/clips/` (OpenCV re-encode, fully offline).
@@ -157,9 +184,9 @@ PRISM/
   is used (the report says so).
 - The minimap must not be rotated (the default League setting) and should be
   visible in-frame.
-- Insights are statistical tendencies over the first 15 minutes - not
+- Insights are statistical tendencies over the analysed match - not
   predictions of future matches.
 
 ## License
 
-MIT - see `pyproject.toml`.
+GPL-3.0-or-later - see [LICENSE](LICENSE).

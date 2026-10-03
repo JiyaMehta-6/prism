@@ -19,7 +19,7 @@ OpenCV probes FPS, frame count, resolution; a file is rejected when:
 
 A decodable file whose duration cannot be computed (`duration == 0`) is
 accepted as *unknown duration*: the analysis window falls back to
-`early_game_minutes` instead of rejecting the file.
+`max_analysis_minutes` instead of rejecting the file.
 
 Failures return `VideoInfo(valid=False, error=...)` instead of raising.
 
@@ -34,7 +34,8 @@ for each frame:
 ```
 
 Memory stays constant (one frame at a time) regardless of video length. The
-analysis window stops at `early_game_minutes` (default 15 min).
+analysis window stops at `max_analysis_minutes` (default 45 min, clipped to
+the longest recording).
 
 **Hardware decode (benchmark-gated)** - on the first video of a session the
 FFmpeg backend is asked to decode with D3D11 hardware acceleration
@@ -161,7 +162,7 @@ ROIs (fractions of the frame): match clock top-centre (primary, with
 top-right/tight fallbacks), blue/red team-kill score boxes beside the clock.
 
 **Clock alignment** - every `ocr_interval_sec` (default 30 s, max
-`ocr_max_calls_per_video` = 40) the timer is read; only readings that parse as
+`ocr_max_calls_per_video` = 120) the timer is read; only readings that parse as
 a clock are considered (a confident unusable string from one ROI cannot shadow
 a parseable reading from another). Offsets
 `clock - video_time` are median-filtered; if the spread exceeds 300 s the
@@ -210,7 +211,44 @@ Confirmed blooms are emitted as `ward` events only inside vision corridors
 spatial cooldown (same spot within 45 s within 0.12 of the map collapses to
 one event), feeding the Vision axis as `ward_events`.
 
-## 7. Per-video metrics
+## 7. Death inference & awareness micro-metrics (`analytics/deaths.py`, `analytics/awareness.py`)
+
+**Deaths from the marker alone** - no death feed is read:
+
+1. only `detected` samples anchor gaps (interpolated fill never shortens an
+   absence),
+2. a gap must last `6-55 s` (shorter: dropout or recall channel, longer:
+   recording gap),
+3. the marker must vanish *away* from the own fountain and the first
+   reappearance must sit within `0.10` map units of it (matching
+   RegionMapper's `base_radius`, so an `is_base` sighting is recognised
+   here too),
+4. a scoreboard kill delta in `[prev - 15 s, respawn + 35 s]` confirms the
+   death (the clock is only read every ~30 s); unconfirmed gaps need
+   `>= 10 s` because a blind recall reappears at the fountain as well,
+5. confidence `0.55 + 0.25-confirmed + 0.10-(gap >= 12 s)`, capped 0.90.
+
+Inferred deaths become `death` events and aggregate into `deaths`,
+`death_rate_per_min`, `death_off_map_median` and
+`death_confirmed_fraction`.
+
+**Vision-adjusted risk** - `unwarded_forward_fraction` is the share of
+forward samples (forward bias `> 0.35`) with no confirmed ward bloom within
+`0.10` map units placed in the previous `120 s`, compared on the same game
+clock as the samples. Absent (metric omitted, Risk axis unchanged) when the
+ward tracker is off or the video has no forward samples.
+
+**Reaction to kills** - for every scoreboard kill in the window the
+pre-event pace (median per-second speed over `[-5, -1] s`) is compared with
+the growing post-event window `[+1, +8] s`. A response is pace `>= 1.7x` or
+`<= 0.4x` the pre-median (or starting from standstill `< 0.015`), or a net
+heading swing `>= 75 deg` between the two windows' displacements (each at
+least `0.006` units, so jitter cannot fake a turn). Metrics:
+`reaction_events_eligible`, `reaction_response_rate`,
+`reaction_latency_median`. Windows are medians/displacements specifically so
+1 Hz sample jitter cannot saturate the metric.
+
+## 8. Per-video metrics
 
 | Metric | Definition |
 | --- | --- |
@@ -228,11 +266,14 @@ one event), feeding the Vision axis as `ward_events`.
 | `window_speed_std` | std of per-phase mean speed |
 | `window_burst_growth` | relative change of phase p90 burst between first and last phase |
 | `late_enemy_fraction` | enemy-side share over the late phases (phases 4-5 of 5, the final 40% of the window) |
+| `deaths`, `death_rate_per_min` | inferred deaths per video / per minute (section 7) |
+| `death_off_map_median`, `death_confirmed_fraction` | median absence length and scoreboard-confirmation share of inferred deaths |
+| `unwarded_forward_fraction` | forward time with no recent nearby ward bloom (section 7; only with ward tracking) |
+| `reaction_events_eligible`, `reaction_response_rate`, `reaction_latency_median` | kill-response observability, response share and median latency (section 7) |
 
-## 8. Profile aggregation (`core/profiler.py`)
+## 9. Profile aggregation (`core/profiler.py`)
 
-- Region time, transitions and histograms are summed across videos (histogram
-  24x24, log-scaled for rendering).
+- Region time and transitions are summed across videos.
 - Every metric gets a time-weighted cross-video mean (`average_metrics`) and a
   cross-video sample spread (`metric_variability`). Consistency coefficients of
   variation are computed *unweighted* from `per_video_metrics` (mean and std
@@ -242,7 +283,7 @@ one event), feeding the Vision axis as `ward_events`.
   key's contribution is clamped at `3.0`.
 - Quality notes are attached for detection `< 55%` or a missing match clock.
 
-## 9. Fingerprint (`core/fingerprint_engine.py`)
+## 10. Fingerprint (`core/fingerprint_engine.py`)
 
 Each axis: `score = 10 · Σ weight_i · saturate(indicator_i)`.
 Saturation is `clamp(value / ceiling, 0, 1)`.
@@ -253,7 +294,7 @@ Saturation is `clamp(value / ceiling, 0, 1)`.
 | **Roaming** | roam rate (0.45, 0.60/min) · destination spread (0.25, 3) · non-lane share (0.30, 0.70) |
 | **Vision** | corridor presence (0.60, 0.45) · river share (0.40, 0.20) |
 | **Objectives** | pit presence (0.45, 0.12) · turret proximity (0.30, 0.35) · river share (0.25, 0.18) |
-| **Risk** | enemy territory (0.35, 0.35) · late enemy exposure (0.25, 0.40) · burst share (0.20, 0.32) · erratic turns (0.20, 0.40) |
+| **Risk** | enemy territory (0.35, 0.35) · late enemy exposure (0.25, 0.40) · burst share (0.20, 0.32) · erratic turns (0.20, 0.40) · unwarded forward time (0.25, optional - dropped and weights renormalised when ward data is absent) |
 | **Consistency** | `0.6·(1 - cv/0.55) + 0.4·(1 - meanAbsDiff/0.22)` over per-video region shares |
 | **Pressure Stability** | `0.35·(1 - drift/0.28) + 0.30·(1 - cv_speed/1.4) + 0.20·(1 - max(0,growth)/1.2) + 0.15·(1 - turns/0.45)` |
 
@@ -269,7 +310,7 @@ quality= 0.92 ^ (number of quality notes)      (floor 0.70)
 Special caps: Vision `<= 0.68` (it is a proxy), Consistency `0.30` with a
 single video. Final range `[0.15, 0.97]`.
 
-## 10. Archetypes (`analytics/archetypes.py`)
+## 11. Archetypes (`analytics/archetypes.py`)
 
 | Archetype | Rule (all must hold) |
 | --- | --- |
@@ -292,7 +333,7 @@ confidence = (0.45 + 0.30·strength + 0.15·evidence + 0.10·quality)
 
 Every archetype always ships with the measured reasons that triggered it.
 
-## 11. Pressure episodes (`analytics/pressure.py`)
+## 12. Pressure episodes (`analytics/pressure.py`)
 
 ```text
 speed(t)       = distance between consecutive samples / dt
@@ -304,7 +345,7 @@ recovery       = following 3-5 samples show speed std < 0.05
 
 `recovery_ratio = recoveries / episodes`.
 
-## 12. Consistency (`analytics/consistency.py`)
+## 13. Consistency (`analytics/consistency.py`)
 
 - Metric dispersion: mean coefficient of variation of
   `forward_high_fraction, enemy_territory_fraction, lane_fraction, river_fraction,
@@ -314,7 +355,7 @@ recovery       = following 3-5 samples show speed std < 0.05
   `1 - JS(P, Q)` of per-video region distributions. Only the worst pair is
   reported when it differs from the best pair.
 
-## 13. Similarity (`analytics/similarity.py`)
+## 14. Similarity (`analytics/similarity.py`)
 
 Behavioural vector = 7 fingerprint axes/10 + 9 region shares + 8 movement
 indicators, L2-normalised; cosine similarity against stored snapshots in
@@ -330,12 +371,14 @@ fingerprint axes, this run's score is ranked against stored snapshots of
 **other** players (`data/profiles/`, same label excluded); the mid-rank
 percentile is `100 · (below + 0.5·equal) / n`. The section only appears when
 `n >= 3` and every snapshot is complete; snapshots missing any fingerprint
-metric are skipped. It surfaces as the `Benchmark` report section (Overview
-tab and the PDF generic-sections table) and never blocks a run.
+metric are skipped. It surfaces as the `Benchmark` report section (Similarity
+tab and the PDF executive-summary table) and never blocks a run.
 
-## 14. Timeline (`analytics/timeline.py`)
+## 15. Timeline (`analytics/timeline.py`)
 
-Windows from `window_plan` (default `0, 3, 7, 12, 15` minutes). Per window:
+Windows from `window_plan` - derived in `Settings.validated()` as ~7-minute
+buckets that never straddle a phase boundary (default `0, 7, 14, 19.5, 25,
+30, 35, 40, 45` minutes). Per window:
 
 ```text
 aggression_index = 10 · (0.45·(bias+1)/2 + 0.35·forward_share(bias>0.3) + 0.20·min(1, roams_per_video/3))
@@ -351,7 +394,7 @@ Confidence: `0.30 + 0.65·min(1, samples/60)` (+0.08 roams, +0.05 objectives,
 -0.08 fallback), capped at 0.93 - thin segments start near 0.37 so a handful
 of samples can never masquerade as a conclusion.
 
-## 15. Insights (`analytics/insights.py`)
+## 16. Insights (`analytics/insights.py`)
 
 Confidence formula:
 
@@ -366,37 +409,43 @@ quality = clamp(detection_rate, 0.55, 1.0)
 | Low objective participation | Objectives `< 5.5` | arrive ~30 s early, set river control |
 | Limited vision corridors | Vision `< 5.5` | ward on rotations/recalls |
 | Positioning/movement tempo destabilises | Pressure Stability `< 5.5` (drift-dependent title) | reset after skirmishes |
-| Inconsistent early-game pattern | `< 5.5` and `>= 2` videos | fixed 15-minute plan |
+| Inconsistent pattern | `< 5.5` and `>= 2` videos | fixed game plan across all phases |
 | Under-trading in lane | Aggression `< 4.5` (suppressed by Lane Dominator) | punish CS from level 1 |
+| Pushing forward without nearby vision | `unwarded_forward_fraction >= 0.45` AND forward share `>= 0.10` | ward before crossing half, hug the warded side |
+| Deaths visible in the movement data | deaths `>= 1.2`/video AND rate `>= 0.10`/min | push only on warded ground |
+| Slow response to kill events | eligible `>= 4` AND response rate `< 0.60` | decide within ~3 s of any kill |
 
 Positive findings (consistency/objectives/pressure `>= 7.0`) are reported as
 strengths. If nothing triggers, a data-insufficiency insight is emitted so the
 report is never empty.
 
-## 16. Charts (`visualizations/charts.py`)
+## 17. Charts (`visualizations/charts.py`)
 
 `Agg` backend, 140 dpi PNG in `outputs/charts/`:
-`fingerprint_radar`, `position_heatmap` (log-scaled 24x24 histogram over an
-annotated map layout), `region_distribution`, `tactical_timeline`,
+`fingerprint_radar`, `region_distribution`, `tactical_timeline`,
 `transition_matrix`, `consistency_variation`, `profile_similarity`,
 `fingerprint_bars` (score + confidence).
 
-## 17. PDF (`reports/pdf_export.py`)
+Charts share one dark "Hextech esports" palette (navy `#121A2B` canvas,
+electric blue `#3B82F6`, hextech gold `#C8AA6E`, esports red `#FF4655`)
+applied through matplotlib rcParams, matching the dark GUI theme.
+
+## 18. PDF (`reports/pdf_export.py`)
 
 A4, ReportLab Platypus, nine sections: cover, executive summary (top findings +
 analytics table + quality notes), fingerprint (radar + table), archetypes,
-heatmaps/regions/transitions, timeline, insights, recommendations, similarity,
+regions/transitions, timeline, insights, recommendations, similarity,
 methodology & limitations. Tables highlight headers, alternate row shading and
 wrap long text in Paragraph cells.
 
-## 18. Performance notes
+## 19. Performance notes
 
-| Stage | Cost driver | Typical (15 min @ 1 fps, 1080p) |
+| Stage | Cost driver | Typical (45 min @ 1 fps, 1080p) |
 | --- | --- | --- |
 | Frame streaming | decoder `grab()` | ~0.1-0.3 s per sampled frame |
 | ROI detection | once per resolution (cached) | negligible |
 | Marker tracking | 160x160 ops per frame | ~2-5 ms |
-| OCR | EasyOCR on small ROI | ~0.5-2 s per call, max 12 per video (disable if slow) |
+| OCR | EasyOCR on small ROI | ~0.5-2 s per call, max 90 per video for a 45-min match (disable if slow) |
 | Analytics + charts | in-memory | < 1 s |
 | PDF | vector + PNG embedding | ~1 s |
 
@@ -407,7 +456,7 @@ re-ordered to the input order). Everything runs off the GUI thread, so the
 window stays live; the first video of a session may additionally pay the
 one-off hardware-decode benchmark (see section 1.2).
 
-## 19. Logging
+## 20. Logging
 
 `logs/analysis.log` (2 MB x 3 rotations):
 

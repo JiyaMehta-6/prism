@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from typing import List, Sequence
 
+from analytics.awareness import WARD_ACTIVE_LOOKBACK_SEC, WARD_VISION_RADIUS
 from core.logger import get_logger
 from core.models import Fingerprint, Insight, PlayerProfile
 
@@ -51,6 +52,18 @@ def generate_insights(
     if vision:
         insights.append(vision)
 
+    unwarded = _unwarded_aggression(profile, fingerprint, quality)
+    if unwarded:
+        insights.append(unwarded)
+
+    death_pattern = _death_pattern(profile, fingerprint, quality)
+    if death_pattern:
+        insights.append(death_pattern)
+
+    slow_reaction = _slow_reaction(profile, fingerprint, quality)
+    if slow_reaction:
+        insights.append(slow_reaction)
+
     pressure = _pressure_gap(profile, fingerprint, quality)
     if pressure:
         insights.append(pressure)
@@ -79,7 +92,7 @@ def generate_insights(
                     "The tracked positions do not deviate enough from neutral behaviour to "
                     "support a specific improvement claim."
                 ),
-                suggestion="Record two or three more full early games and re-run PRISM.",
+                suggestion="Record two or three more full games and re-run PRISM.",
                 confidence=round(0.4 * quality, 3),
                 severity="info",
                 evidence=[f"Samples: {profile.total_samples}", f"Videos: {profile.video_count}"],
@@ -149,7 +162,7 @@ def _kill_conversion(
     return Insight(
         title="Roams rarely convert into kills",
         detail=(
-            f"Your team scored {kills_for:.1f} early-game kills on average but only "
+            f"Your team scored {kills_for:.1f} kills on average but only "
             f"{during:.1f} of them ({share * 100:.0f}%) landed while you were rotating "
             f"between lanes (roam rate {roam_rate:.2f}/min). Rotations that arrive "
             "after the fight resolves cost lane pressure without changing the map."
@@ -159,7 +172,7 @@ def _kill_conversion(
         confidence=confidence,
         severity="info",
         evidence=[
-            f"Team kills in the early game: {kills_for:.1f}",
+            f"Team kills in the analysed match: {kills_for:.1f}",
             f"Team kills during your roams: {during:.1f}",
             f"Roam rate: {roam_rate:.2f}/min",
         ],
@@ -233,6 +246,121 @@ def _vision_gap(
     )
 
 
+def _unwarded_aggression(
+    profile: PlayerProfile, fingerprint: Fingerprint, quality: float
+) -> Insight | None:
+    """Forward time with no recent vision bloom is measurable ambush exposure."""
+    metrics = profile.average_metrics
+    if "unwarded_forward_fraction" not in metrics:
+        return None  # ward tracking off: no evidence, no claim
+    frac = metrics.get("unwarded_forward_fraction", 0.0)
+    forward = metrics.get("forward_high_fraction", 0.0)
+    if frac < 0.45 or forward < 0.10:
+        return None
+    strength = min(1.0, (frac - 0.45) / 0.40)
+    confidence = _conf(0.58 + 0.26 * strength, fingerprint.confidence.get("Vision", 0.6), quality)
+    return Insight(
+        title="Pushing forward without nearby vision",
+        detail=(
+            f"{frac * 100:.0f}% of your forward time (position bias > 0.35) has no vision "
+            f"bloom within {WARD_VISION_RADIUS:.2f} map units placed in the previous "
+            f"{WARD_ACTIVE_LOOKBACK_SEC:.0f} seconds, out of "
+            f"{forward * 100:.0f}% forward-positioned samples overall. Advancing on "
+            "unwarded ground removes the few seconds of warning the minimap can give "
+            "before a collapse arrives."
+        ),
+        suggestion="Drop a ward in the river or enemy jungle mouth *before* the wave "
+        "passes half-way, and retreat to the warded side once the bloom expires.",
+        confidence=confidence,
+        severity="risk",
+        evidence=[
+            f"Forward samples without recent nearby vision: {frac * 100:.0f}%",
+            f"Forward-positioned samples: {forward * 100:.0f}%",
+            f"Vision bloom coverage model: radius {WARD_VISION_RADIUS:.2f}, "
+            f"lookback {WARD_ACTIVE_LOOKBACK_SEC:.0f}s",
+        ],
+    )
+
+
+def _death_pattern(
+    profile: PlayerProfile, fingerprint: Fingerprint, quality: float
+) -> Insight | None:
+    """Repeated inferred deaths - counted from the marker alone - deserve attention."""
+    metrics = profile.average_metrics
+    deaths = metrics.get("deaths", 0.0)
+    rate = metrics.get("death_rate_per_min", 0.0)
+    if deaths < 1.2 or rate < 0.10:
+        return None
+    off_map = metrics.get("death_off_map_median", 0.0)
+    confirmed = metrics.get("death_confirmed_fraction", 0.0)
+    unwarded = metrics.get("unwarded_forward_fraction")
+    strength = min(1.0, (rate - 0.10) / 0.35)
+    confidence = _conf(0.60 + 0.25 * strength, fingerprint.confidence.get("Risk", 0.6), quality)
+    detail = (
+        f"PRISM infers {deaths:.1f} deaths per video ({rate:.2f}/min) purely from the "
+        f"minimap marker vanishing away from base and reappearing at your fountain - "
+        f"median {off_map:.0f}s off the map, {confirmed * 100:.0f}% corroborated by "
+        "scoreboard kill deltas. Deaths at this rate hand the enemy free tempo every "
+        "few minutes of the analysed game."
+    )
+    if unwarded is not None and unwarded >= 0.50:
+        detail += (
+            f" {unwarded * 100:.0f}% of forward time had no nearby vision, so most of "
+            "these deaths happen while pushing blind."
+        )
+    evidence = [
+        f"Inferred deaths per video: {deaths:.1f} ({rate:.2f}/min)",
+        f"Median time off the map: {off_map:.0f}s",
+        f"Scoreboard-confirmed: {confirmed * 100:.0f}%",
+    ]
+    if unwarded is not None:
+        evidence.append(f"Forward time without nearby vision: {unwarded * 100:.0f}%")
+    return Insight(
+        title="Deaths visible in the movement data",
+        detail=detail,
+        suggestion="Before each death window, ask whether a ward covers the side you "
+        "are pushing from - trade one CS for staying on the warded side.",
+        confidence=confidence,
+        severity="risk",
+        evidence=evidence,
+    )
+
+
+def _slow_reaction(
+    profile: PlayerProfile, fingerprint: Fingerprint, quality: float
+) -> Insight | None:
+    """Kills that never change the player's pace are fights not converted."""
+    metrics = profile.average_metrics
+    eligible = metrics.get("reaction_events_eligible", 0.0)
+    if eligible < 4:
+        return None  # too few observed kills to judge tempo honestly
+    rate = metrics.get("reaction_response_rate", 1.0)
+    if rate >= 0.60:
+        return None
+    latency = metrics.get("reaction_latency_median", 0.0)
+    strength = min(1.0, (0.60 - rate) / 0.60)
+    confidence = _conf(0.55 + 0.25 * strength, fingerprint.confidence.get("Aggression", 0.6), quality)
+    return Insight(
+        title="Slow response to kill events",
+        detail=(
+            f"Only {rate * 100:.0f}% of the {eligible:.0f} scoreboard kills visible in "
+            f"the footage were followed by a clear change of pace or direction "
+            f"within 8 seconds (median response {latency:.0f}s). Kills elsewhere on the "
+            "map are temporary numbers advantages - hesitation lets them expire."
+        ),
+        suggestion="After any kill appears, pick one of three moves within ~3 seconds: "
+        "crash the wave, rotate to the nearest objective, or recall - standing still "
+        "is the only wrong answer.",
+        confidence=confidence,
+        severity="info",
+        evidence=[
+            f"Kills with measurable response: {rate * 100:.0f}% of {eligible:.0f}",
+            f"Median response latency: {latency:.0f}s",
+            "Response = heading change >= 75 deg or speed change >= 1.7x within 8s",
+        ],
+    )
+
+
 def _pressure_gap(
     profile: PlayerProfile, fingerprint: Fingerprint, quality: float
 ) -> Insight | None:
@@ -289,7 +417,7 @@ def _consistency_gap(
     strength = min(1.0, (5.5 - consistency) / 4.0)
     confidence = _conf(0.60 + 0.20 * strength, fingerprint.confidence.get("Consistency", 0.55), quality)
     return Insight(
-        title="Inconsistent early-game pattern between matches",
+        title="Inconsistent pattern between matches",
         detail=(
             f"The consistency axis is {consistency:.1f}/10 across {profile.video_count} "
             "recordings. Region occupancy and forward positioning vary enough match to "
@@ -349,7 +477,7 @@ def _strengths(
                 detail=(
                     f"Consistency scores {fingerprint.get('Consistency'):.1f}/10 across "
                     f"{profile.video_count} recordings - the player executes the same "
-                    "early-game identity every game."
+                    "identity every game."
                 ),
                 suggestion="Keep the current routine and layer one new champion or route "
                 "on top of the stable base.",

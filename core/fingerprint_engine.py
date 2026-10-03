@@ -167,6 +167,18 @@ COMPOSITIONS: Dict[str, List[Indicator]] = {
          lambda m: f"high-speed burst share {m.get('burst_fraction', 0) * 100:.0f}%"),
         ("erratic", 0.20, _saturation("erratic_turn_rate", 0.40),
          lambda m: f"erratic heading changes {m.get('erratic_turn_rate', 0):.2f}/step"),
+        # Optional: active only when ward-bloom tracking produced data, so a
+        # run without vision tracking scores exactly as before.  This is the
+        # vision-adjusted risk: time spent forward with no recent bloom.
+        ("unwarded", 0.25,
+         lambda m: (
+             None if "unwarded_forward_fraction" not in m
+             else max(0.0, min(1.0, m.get("unwarded_forward_fraction", 0.0)))
+         ),
+         lambda m: (
+             f"{m.get('unwarded_forward_fraction', 0.0) * 100:.0f}% of forward time "
+             "with no nearby vision bloom"
+         )),
     ],
     "Consistency": [],
     "Pressure Stability": [],

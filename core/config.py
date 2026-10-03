@@ -7,9 +7,10 @@ discarded silently and replaced with defaults.
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import asdict, dataclass, field, fields
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Sequence
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -23,6 +24,20 @@ SETTINGS_PATH = os.path.join(DATA_DIR, "settings.json")
 LOG_PATH = os.path.join(LOG_DIR, "analysis.log")
 
 SUPPORTED_EXTENSIONS: List[str] = [".mp4", ".mkv", ".avi", ".mov"]
+
+# League of Legends phases, in minutes from game start. Games are analysed
+# across the whole match - Early (laning), Mid (rotations and outer towers),
+# Late (teamfights around major objectives) and End (inhibitors/elder/nexus).
+DEFAULT_PHASE_BOUNDARIES: List[float] = [14.0, 25.0, 35.0]
+PHASE_NAMES: List[str] = ["Early", "Mid", "Late", "End"]
+
+
+def phase_for_minute(minute: float, boundaries: Sequence[float] | None) -> str:
+    """LoL phase a game minute belongs to (Early/Mid/Late/End)."""
+    if boundaries is None:
+        boundaries = DEFAULT_PHASE_BOUNDARIES
+    passed = sum(1 for b in boundaries if minute >= b)
+    return PHASE_NAMES[min(passed, len(PHASE_NAMES) - 1)]
 
 # Scalar region anchors users may override (see vision.region_mapper).
 # Values are clamped here so a hand-edited settings file can never produce a
@@ -80,19 +95,31 @@ class Settings:
     """User configurable analysis parameters."""
 
     sample_fps: float = 1.0
-    early_game_minutes: float = 15.0
+    # Analysed span of the match. The pipeline covers every LoL phase
+    # (Early/Mid/Late/End) up to this cap; shorter recordings simply end
+    # sooner, so the default 45 min covers virtually every real game.
+    max_analysis_minutes: float = 45.0
+    # Phase boundaries in minutes; exactly three strictly increasing values
+    # are accepted, anything else falls back to DEFAULT_PHASE_BOUNDARIES.
+    phase_boundaries: List[float] = field(
+        default_factory=lambda: list(DEFAULT_PHASE_BOUNDARIES)
+    )
     minimap_side: str = "auto"
     minimap_roi: List[float] = field(default_factory=lambda: [0.0, 0.0, 0.0, 0.0])
     marker_min_confidence: float = 0.30
     max_interpolate_gap: int = 4
     roam_min_duration_sec: float = 8.0
     roam_max_lane_absence_sec: float = 45.0
-    window_plan: List[float] = field(default_factory=lambda: [0.0, 3.0, 7.0, 12.0, 15.0])
+    # Derived in validated(): ~7-minute buckets that never straddle a phase
+    # boundary, ending at the analysis cap.
+    window_plan: List[float] = field(
+        default_factory=lambda: [0.0, 7.0, 14.0, 19.5, 25.0, 30.0, 35.0, 40.0, 45.0]
+    )
     ocr_enabled: bool = True
     ocr_interval_sec: float = 30.0
-    # 40 reads x 30 s covers the whole 15-minute window (30 reads needed) for
-    # both the match clock and the kill-scoreboard event tracking.
-    ocr_max_calls_per_video: int = 40
+    # 120 reads x 30 s = 60 minutes of clock/scoreboard coverage, enough for
+    # the 45-minute default window (90 reads needed) with headroom.
+    ocr_max_calls_per_video: int = 120
     ocr_min_confidence: float = 0.55
     use_game_clock: bool = True
     # Heuristic ward-like bloom detection on the minimap (pure CV, offline).
@@ -107,8 +134,8 @@ class Settings:
     def validated(self) -> "Settings":
         """Clamp/coerce every field so bad input can never crash the app."""
         self.sample_fps = _num(self.sample_fps, 0.1, 30.0, 1.0)
-        # PRISM's scope is the 0-15 min early game; never accept more.
-        self.early_game_minutes = _num(self.early_game_minutes, 1.0, 15.0, 15.0)
+        # Whole-match analysis: up to 10 hours; recordings end sooner anyway.
+        self.max_analysis_minutes = _num(self.max_analysis_minutes, 1.0, 600.0, 45.0)
         self.marker_min_confidence = _num(self.marker_min_confidence, 0.0, 0.95, 0.30)
         self.max_interpolate_gap = _int(self.max_interpolate_gap, 0, 30, 4)
         self.roam_min_duration_sec = _num(self.roam_min_duration_sec, 1.0, 300.0, 8.0)
@@ -116,7 +143,7 @@ class Settings:
             self.roam_max_lane_absence_sec, self.roam_min_duration_sec, 1800.0, 45.0
         )
         self.ocr_interval_sec = _num(self.ocr_interval_sec, 5.0, 3600.0, 30.0)
-        self.ocr_max_calls_per_video = _int(self.ocr_max_calls_per_video, 0, 1000, 40)
+        self.ocr_max_calls_per_video = _int(self.ocr_max_calls_per_video, 0, 1000, 120)
         self.ocr_min_confidence = _num(self.ocr_min_confidence, 0.0, 1.0, 0.55)
         self.similarity_top_n = _int(self.similarity_top_n, 1, 50, 5)
         self.ocr_enabled = _bool(self.ocr_enabled, True)
@@ -136,26 +163,37 @@ class Settings:
             coerced = [0.0, 0.0, 0.0, 0.0]
         self.minimap_roi = coerced
 
-        plan: List[float] = []
-        if isinstance(self.window_plan, (list, tuple)):
-            for item in self.window_plan:
+        # Phase boundaries: exactly three strictly increasing minutes.
+        bounds: List[float] = []
+        if isinstance(self.phase_boundaries, (list, tuple)):
+            for item in self.phase_boundaries:
                 try:
-                    plan.append(float(item))
+                    value = float(item)
                 except (TypeError, ValueError, OverflowError):
                     continue
-        plan = sorted({round(value, 3) for value in plan if value >= 0})
-        # Phase boundaries must stay inside the analysis window so no bucket
-        # lies beyond ``early_game_minutes``.
-        window = round(self.early_game_minutes, 3)
-        plan = [value for value in plan if value <= window]
-        # Re-anchor to the window: the first bucket must start at 0 and the
-        # last must end exactly at the window edge, otherwise timeline/roam
-        # bucketing silently drops every sample after the last edge (e.g. a
-        # stale 15-minute plan under a 10-minute window).
-        if plan and plan[0] > 0.0:
-            plan.insert(0, 0.0)
-        if plan and plan[-1] < window:
-            plan.append(window)
+                if value == value and value > 0 and value not in (float("inf"), float("-inf")):
+                    bounds.append(round(value, 3))
+        bounds = sorted(set(bounds))
+        if len(bounds) != 3:
+            bounds = list(DEFAULT_PHASE_BOUNDARIES)
+        self.phase_boundaries = bounds
+
+        # The timeline plan is always *derived*, never trusted from a stored
+        # file: ~7-minute buckets that start at 0, never straddle a phase
+        # boundary and end exactly at the analysis cap. This also retires
+        # stale 0-15 minute plans persisted by older installs.
+        window = round(self.max_analysis_minutes, 3)
+        stops = [b for b in bounds if 0.0 < b < window]
+        plan = [0.0]
+        previous = 0.0
+        for stop in [*stops, window]:
+            parts = max(1, int(math.ceil((stop - previous) / 7.0)))
+            step = (stop - previous) / parts
+            for i in range(1, parts):
+                plan.append(round(previous + step * i, 3))
+            plan.append(round(stop, 3))
+            previous = stop
+        plan = sorted({round(value, 3) for value in plan if value >= 0.0})
         if len(plan) < 3:
             plan = [0.0, round(window / 3.0, 3), round(2.0 * window / 3.0, 3), window]
         self.window_plan = plan

@@ -1,7 +1,7 @@
 """Aggression analytics.
 
-Quantifies how confrontationally a player operates during the first 15
-minutes from four movement-derived indicators:
+Quantifies how confrontationally a player operates across the analysed
+match (all LoL phases) from four movement-derived indicators:
 
 * **forward positioning frequency** - share of samples on the enemy side of the
   mid-line diagonal,
@@ -72,7 +72,7 @@ def analyze_aggression(
     if risk > 0.30:
         notes.append(f"High risk exposure: {risk * 100:.0f}% of time inside enemy territory.")
     if roam >= 0.35:
-        notes.append(f"Rotations occur {roam:.2f} times per minute of early game.")
+        notes.append(f"Rotations occur {roam:.2f} times per minute of analysed game time.")
     if engagement > 0.5:
         notes.append("Burst movement and sharp heading changes suggest frequent short trades.")
 
@@ -100,7 +100,7 @@ def _summarise(score: float, forward: float, roam: float) -> str:
         rotation_phrase = f"rotations stay rare ({roam:.2f} per minute)"
     if score >= 7.5:
         return (
-            f"Highly aggressive early profile ({score:.1f}/10): the player {forward_phrase} "
+            f"Highly aggressive profile ({score:.1f}/10): the player {forward_phrase} "
             f"and {rotation_phrase}, accepting trades and territory risk to create pressure."
         )
     if score >= 5.5:
@@ -114,6 +114,6 @@ def _summarise(score: float, forward: float, roam: float) -> str:
             f"and {rotation_phrase}, favouring stable farm-oriented positions."
         )
     return (
-        f"Passive early profile ({score:.1f}/10): the player {forward_phrase} "
+        f"Passive profile ({score:.1f}/10): the player {forward_phrase} "
         f"and {rotation_phrase}, prioritising safety over map pressure."
     )

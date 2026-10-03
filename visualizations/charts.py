@@ -2,7 +2,8 @@
 
 All charts are rendered headlessly (``Agg``), saved as PNG under
 ``outputs/charts`` and reused by both the GUI report tabs and the PDF
-exporter.  A single light-weight theme keeps every figure print-ready.
+exporter.  A single dark "Hextech esports" theme (navy canvas, electric
+blue, hextech gold) keeps every figure matching the GUI.
 """
 
 from __future__ import annotations
@@ -16,7 +17,6 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
-from matplotlib.patches import Circle  # noqa: E402
 
 from core.config import CHART_DIR
 from core.logger import get_logger
@@ -31,26 +31,43 @@ from vision.region_mapper import REGIONS
 
 logger = get_logger("charts")
 
+# Hextech esports palette - shared with the GUI stylesheet.
+plt.rcParams.update(
+    {
+        "figure.facecolor": "#121A2B",
+        "axes.facecolor": "#121A2B",
+        "savefig.facecolor": "#121A2B",
+        "text.color": "#E6ECF7",
+        "axes.labelcolor": "#E6ECF7",
+        "axes.titlecolor": "#E6ECF7",
+        "xtick.color": "#8B98AD",
+        "ytick.color": "#8B98AD",
+        "axes.edgecolor": "#26324A",
+        "grid.color": "#2A3752",
+        "grid.alpha": 0.4,
+    }
+)
+
 COLORS = {
-    "primary": "#2F6FB2",
-    "accent": "#E8833A",
-    "green": "#3FA46A",
-    "red": "#C4453C",
-    "purple": "#7A5FA6",
-    "grey": "#7F8C8D",
-    "bg": "#FFFFFF",
+    "primary": "#3B82F6",
+    "accent": "#C8AA6E",
+    "green": "#37D399",
+    "red": "#FF4655",
+    "purple": "#A78BFA",
+    "grey": "#8B98AD",
+    "bg": "#121A2B",
 }
 
 REGION_COLORS: Dict[str, str] = {
-    "Base": "#95A5A6",
-    "Top Lane": "#5DADE2",
-    "Mid Lane": "#EC7063",
-    "Bot Lane": "#58D68D",
-    "River": "#5499C7",
-    "Blue Jungle": "#48C9B0",
-    "Red Jungle": "#F1948A",
-    "Dragon Area": "#F5B041",
-    "Herald Area": "#BB8FCE",
+    "Base": "#64748B",
+    "Top Lane": "#38BDF8",
+    "Mid Lane": "#FB7185",
+    "Bot Lane": "#4ADE80",
+    "River": "#60A5FA",
+    "Blue Jungle": "#2DD4BF",
+    "Red Jungle": "#FDA4AF",
+    "Dragon Area": "#FBBF24",
+    "Herald Area": "#C084FC",
 }
 
 
@@ -86,7 +103,7 @@ def _style_axes(ax: plt.Axes, title: str) -> None:
     ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
     ax.grid(True, alpha=0.3, linewidth=0.7)
     for spine in ax.spines.values():
-        spine.set_color("#BFC9CA")
+        spine.set_color("#26324A")
 
 
 def generate_all(
@@ -99,7 +116,6 @@ def generate_all(
     paths: Dict[str, str] = {}
     generators = (
         ("fingerprint", lambda: radar_chart(fingerprint)),
-        ("heatmap", lambda: heatmap_chart(profile)),
         ("regions", lambda: region_chart(profile)),
         ("timeline", lambda: timeline_chart(timeline)),
         ("transitions", lambda: transition_chart(profile)),
@@ -142,53 +158,10 @@ def radar_chart(fingerprint: Fingerprint) -> str:
     ax.set_xticklabels(labels, fontsize=10)
     ax.set_ylim(0, 10)
     ax.set_yticks([2, 4, 6, 8, 10])
-    ax.set_yticklabels(["2", "4", "6", "8", "10"], fontsize=8, color="#7F8C8D")
+    ax.set_yticklabels(["2", "4", "6", "8", "10"], fontsize=8, color="#8B98AD")
     ax.set_title("Behavioural Fingerprint", fontsize=13, fontweight="bold", pad=22)
-    ax.grid(color="#D5D8DC")
+    ax.grid(color="#2A3752")
     return _save(fig, "fingerprint_radar.png")
-
-
-def heatmap_chart(profile: PlayerProfile) -> str:
-    """Position heatmap over an annotated map layout."""
-    histogram = np.asarray(profile.histogram, dtype=float)
-    if histogram.size == 0:
-        histogram = np.zeros((24, 24))
-    smoothed = histogram.copy()
-    if smoothed.max() > 0:
-        smoothed = np.log1p(smoothed)
-
-    fig, ax = plt.subplots(figsize=(7.2, 7.2))
-    fig.patch.set_facecolor(COLORS["bg"])
-    extent = (-0.04, 1.04, 1.04, -0.04)
-    im = ax.imshow(smoothed, cmap="inferno", aspect="auto", extent=extent, alpha=0.9)
-
-    _draw_map_layout(ax)
-    ax.set_xlim(-0.05, 1.05)
-    ax.set_ylim(1.05, -0.05)
-    ax.set_title("Player Position Heatmap (0-15 min)", fontsize=13, fontweight="bold")
-    ax.set_xlabel("Minimap X (normalised)")
-    ax.set_ylabel("Minimap Y (normalised)")
-    fig.colorbar(im, ax=ax, shrink=0.7, label="log(occupancy)")
-    return _save(fig, "position_heatmap.png")
-
-
-def _draw_map_layout(ax: plt.Axes) -> None:
-    inset = 0.07
-    top = [(inset, 1 - inset), (inset, inset), (1 - inset, inset)]
-    bot = [(inset, 1 - inset), (1 - inset, 1 - inset), (1 - inset, inset)]
-    for line, color in ((top, REGION_COLORS["Top Lane"]), (bot, REGION_COLORS["Bot Lane"])):
-        ax.plot(*zip(*line), color=color, linewidth=2.2, alpha=0.85)
-    ax.plot([0.05, 0.95], [0.95, 0.05], color=REGION_COLORS["Mid Lane"], linewidth=2.2,
-            alpha=0.85, linestyle="--")
-    ax.plot([0.20, 0.80], [0.20, 0.80], color=REGION_COLORS["River"], linewidth=2.4,
-            alpha=0.85, linestyle=":")
-
-    ax.add_patch(Circle((0.05, 0.95), 0.07, color=REGION_COLORS["Base"], alpha=0.35))
-    ax.add_patch(Circle((0.95, 0.05), 0.07, color=REGION_COLORS["Base"], alpha=0.35))
-    ax.add_patch(Circle((0.66, 0.70), 0.055, color=REGION_COLORS["Dragon Area"], alpha=0.55))
-    ax.add_patch(Circle((0.34, 0.28), 0.055, color=REGION_COLORS["Herald Area"], alpha=0.55))
-    ax.text(0.66, 0.70, "D", ha="center", va="center", fontsize=9, fontweight="bold")
-    ax.text(0.34, 0.28, "H", ha="center", va="center", fontsize=9, fontweight="bold")
 
 
 def region_chart(profile: PlayerProfile) -> str:
@@ -199,7 +172,7 @@ def region_chart(profile: PlayerProfile) -> str:
 
     fig, ax = plt.subplots(figsize=(8.4, 4.6))
     fig.patch.set_facecolor(COLORS["bg"])
-    bars = ax.barh(regions, values, color=colors, edgecolor="white")
+    bars = ax.barh(regions, values, color=colors, edgecolor="none")
     for bar, value in zip(bars, values):
         ax.text(
             bar.get_width() + 0.6,
@@ -209,7 +182,7 @@ def region_chart(profile: PlayerProfile) -> str:
             fontsize=9,
         )
     _style_axes(ax, "Time Spent per Region")
-    ax.set_xlabel("Share of analysed early game (%)")
+    ax.set_xlabel("Share of analysed time (%)")
     ax.set_xlim(0, max(values + [10]) * 1.25)
     ax.invert_yaxis()
     return _save(fig, "region_distribution.png")
@@ -236,7 +209,7 @@ def timeline_chart(timeline: Sequence[TimelineWindow]) -> str:
             fontsize=8,
         )
     ax.plot(x, aggression, color=COLORS["accent"], marker="o", linewidth=2, zorder=5)
-    _style_axes(ax, "Tactical Timeline - Early Game Behaviour")
+    _style_axes(ax, "Tactical Timeline - Full Match Behaviour")
     ax.set_xticks(x)
     ax.set_xticklabels(labels, fontsize=8.5)
     ax.set_ylabel("Aggression index (0-10)")
@@ -325,7 +298,7 @@ def similarity_chart(results: Sequence[SimilarityResult]) -> str:
     fig.patch.set_facecolor(COLORS["bg"])
     colors = [COLORS["green"] if v >= 75 else COLORS["primary"] if v >= 60 else COLORS["grey"]
               for v in values]
-    bars = ax.barh(labels, values, color=colors, edgecolor="white")
+    bars = ax.barh(labels, values, color=colors, edgecolor="none")
     for bar, value in zip(bars, values):
         ax.text(value + 1, bar.get_y() + bar.get_height() / 2, f"{value:.1f}%",
                 va="center", fontsize=9)

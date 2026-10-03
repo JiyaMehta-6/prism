@@ -103,7 +103,7 @@ $s.Save()
 1. Add 1-5 gameplay videos (MP4 / MKV / AVI / MOV).
 2. Open **Settings** and confirm:
    - Frame sampling rate `1.0 fps` (default),
-   - Early game window `15 min`,
+   - Max game time `45 min` (whole match, phases Early / Mid / Late / End),
    - Minimap side `auto` (or `left`/`right` if you know your HUD),
    - OCR enabled only if the models were prefetched.
 3. Click **Analyse Player**.
