@@ -1,0 +1,698 @@
+{
+ "champions": {
+  "Aatrox": {
+   "file": "Aatrox.png",
+   "phash": "229cee0f36f1aa55"
+  },
+  "Ahri": {
+   "file": "Ahri.png",
+   "phash": "b9e4c295f9176619"
+  },
+  "Akali": {
+   "file": "Akali.png",
+   "phash": "b1b88ae5ec87e619"
+  },
+  "Akshan": {
+   "file": "Akshan.png",
+   "phash": "2e3b3a62d2dcae15"
+  },
+  "Alistar": {
+   "file": "Alistar.png",
+   "phash": "596b86b73a07ea15"
+  },
+  "Ambessa": {
+   "file": "Ambessa.png",
+   "phash": "aee6eaccba15a115"
+  },
+  "Amumu": {
+   "file": "Amumu.png",
+   "phash": "4e060ecef067fe91"
+  },
+  "Anivia": {
+   "file": "Anivia.png",
+   "phash": "b22ebae60c1e76d1"
+  },
+  "Annie": {
+   "file": "Annie.png",
+   "phash": "b0c6feb2c1397e11"
+  },
+  "Aphelios": {
+   "file": "Aphelios.png",
+   "phash": "b93a56cc6916e655"
+  },
+  "Ashe": {
+   "file": "Ashe.png",
+   "phash": "780deed6bae29215"
+  },
+  "Aurelion Sol": {
+   "file": "AurelionSol.png",
+   "phash": "938dec726b4ed225"
+  },
+  "Aurora": {
+   "file": "Aurora.png",
+   "phash": "fec0fa87e8c10e17"
+  },
+  "Azir": {
+   "file": "Azir.png",
+   "phash": "b2ae5ab5ea8df005"
+  },
+  "Bard": {
+   "file": "Bard.png",
+   "phash": "6af93a4bda85a255"
+  },
+  "Bel'Veth": {
+   "file": "Belveth.png",
+   "phash": "dafaea7c09076495"
+  },
+  "Blitzcrank": {
+   "file": "Blitzcrank.png",
+   "phash": "f3b653dacaca2621"
+  },
+  "Brand": {
+   "file": "Brand.png",
+   "phash": "ea496ae7e8a5b215"
+  },
+  "Braum": {
+   "file": "Braum.png",
+   "phash": "3cbcce8af887e815"
+  },
+  "Briar": {
+   "file": "Briar.png",
+   "phash": "599239c32a79ee95"
+  },
+  "Caitlyn": {
+   "file": "Caitlyn.png",
+   "phash": "6f1bb6ec0981f60d"
+  },
+  "Camille": {
+   "file": "Camille.png",
+   "phash": "a4e57a4eeea3c819"
+  },
+  "Cassiopeia": {
+   "file": "Cassiopeia.png",
+   "phash": "c9697a63dca52a55"
+  },
+  "Cho'Gath": {
+   "file": "Chogath.png",
+   "phash": "f4dc6e958295fa05"
+  },
+  "Corki": {
+   "file": "Corki.png",
+   "phash": "235c1e2a78fbea45"
+  },
+  "Darius": {
+   "file": "Darius.png",
+   "phash": "d1f4667ee61e8e01"
+  },
+  "Diana": {
+   "file": "Diana.png",
+   "phash": "6ea86bfa2e5cd601"
+  },
+  "Dr. Mundo": {
+   "file": "DrMundo.png",
+   "phash": "c8e8fb07e257ac15"
+  },
+  "Draven": {
+   "file": "Draven.png",
+   "phash": "32366e4c569ee671"
+  },
+  "Ekko": {
+   "file": "Ekko.png",
+   "phash": "ceae2ae3e80cda95"
+  },
+  "Elise": {
+   "file": "Elise.png",
+   "phash": "d9397726cc46e619"
+  },
+  "Evelynn": {
+   "file": "Evelynn.png",
+   "phash": "fa327cfe0481f81d"
+  },
+  "Ezreal": {
+   "file": "Ezreal.png",
+   "phash": "4a6968d6aadba695"
+  },
+  "Fiddlesticks": {
+   "file": "Fiddlesticks.png",
+   "phash": "9a423ae9eeb1f605"
+  },
+  "Fiora": {
+   "file": "Fiora.png",
+   "phash": "cb5b0ee92a25e655"
+  },
+  "Fizz": {
+   "file": "Fizz.png",
+   "phash": "bef48a51e807fa15"
+  },
+  "Galio": {
+   "file": "Galio.png",
+   "phash": "2ac6ea8e7a1dea15"
+  },
+  "Gangplank": {
+   "file": "Gangplank.png",
+   "phash": "e42c8e5beb4b2a95"
+  },
+  "Garen": {
+   "file": "Garen.png",
+   "phash": "b94df2b5ea540e49"
+  },
+  "Gnar": {
+   "file": "Gnar.png",
+   "phash": "b36608b3fcc32ed1"
+  },
+  "Gragas": {
+   "file": "Gragas.png",
+   "phash": "96067e6c2e9bcb31"
+  },
+  "Graves": {
+   "file": "Graves.png",
+   "phash": "5c38eb782296fe45"
+  },
+  "Gwen": {
+   "file": "Gwen.png",
+   "phash": "8e397e469a2f8ad1"
+  },
+  "Hecarim": {
+   "file": "Hecarim.png",
+   "phash": "69322ef83ba5ea15"
+  },
+  "Heimerdinger": {
+   "file": "Heimerdinger.png",
+   "phash": "c94e337e66c1be11"
+  },
+  "Hwei": {
+   "file": "Hwei.png",
+   "phash": "8dcd322cf3b4ee11"
+  },
+  "Illaoi": {
+   "file": "Illaoi.png",
+   "phash": "7c6af870e0ab8755"
+  },
+  "Irelia": {
+   "file": "Irelia.png",
+   "phash": "f9e8f08f61758615"
+  },
+  "Ivern": {
+   "file": "Ivern.png",
+   "phash": "265ceeb0ba91ea4d"
+  },
+  "Janna": {
+   "file": "Janna.png",
+   "phash": "33a6666efcd0fa01"
+  },
+  "Jarvan IV": {
+   "file": "JarvanIV.png",
+   "phash": "4db236f63a0fce81"
+  },
+  "Jax": {
+   "file": "Jax.png",
+   "phash": "ea6aba96c6467455"
+  },
+  "Jayce": {
+   "file": "Jayce.png",
+   "phash": "9863623cee3cb6d1"
+  },
+  "Jhin": {
+   "file": "Jhin.png",
+   "phash": "633a9ee56816e659"
+  },
+  "Jinx": {
+   "file": "Jinx.png",
+   "phash": "bbe6724ce6cd8611"
+  },
+  "K'Sante": {
+   "file": "KSante.png",
+   "phash": "80c36aaff817f817"
+  },
+  "Kai'Sa": {
+   "file": "Kaisa.png",
+   "phash": "99a26a9aa64d967d"
+  },
+  "Kalista": {
+   "file": "Kalista.png",
+   "phash": "723e1ec9a16aee91"
+  },
+  "Karma": {
+   "file": "Karma.png",
+   "phash": "aa6cce876a57a835"
+  },
+  "Karthus": {
+   "file": "Karthus.png",
+   "phash": "63f9c6e61a8966d1"
+  },
+  "Kassadin": {
+   "file": "Kassadin.png",
+   "phash": "17d4e0eb76b8ca15"
+  },
+  "Katarina": {
+   "file": "Katarina.png",
+   "phash": "6ddb92969427526d"
+  },
+  "Kayle": {
+   "file": "Kayle.png",
+   "phash": "b22eca9eea6bf005"
+  },
+  "Kayn": {
+   "file": "Kayn.png",
+   "phash": "c95b2b2aa615ead5"
+  },
+  "Kennen": {
+   "file": "Kennen.png",
+   "phash": "ce2d32b7e0d6ca0d"
+  },
+  "Kha'Zix": {
+   "file": "Khazix.png",
+   "phash": "96a64a59f28dea55"
+  },
+  "Kindred": {
+   "file": "Kindred.png",
+   "phash": "8666367ada86365d"
+  },
+  "Kled": {
+   "file": "Kled.png",
+   "phash": "eab27049eeb54a55"
+  },
+  "Kog'Maw": {
+   "file": "KogMaw.png",
+   "phash": "b36dcc9136e66e09"
+  },
+  "LeBlanc": {
+   "file": "Leblanc.png",
+   "phash": "e2662e8ee4959679"
+  },
+  "Lee Sin": {
+   "file": "LeeSin.png",
+   "phash": "7af0d2f2e8c1fa05"
+  },
+  "Leona": {
+   "file": "Leona.png",
+   "phash": "b9ae5226ad8f6651"
+  },
+  "Lillia": {
+   "file": "Lillia.png",
+   "phash": "b9674fc23835e651"
+  },
+  "Lissandra": {
+   "file": "Lissandra.png",
+   "phash": "ce2cee91f285ee11"
+  },
+  "Locke": {
+   "file": "Locke.png",
+   "phash": "63129a5e6a6daad5"
+  },
+  "Lucian": {
+   "file": "Lucian.png",
+   "phash": "e82a26f43e45fa1d"
+  },
+  "Lulu": {
+   "file": "Lulu.png",
+   "phash": "b96eea39e1831e45"
+  },
+  "Lux": {
+   "file": "Lux.png",
+   "phash": "b856f45e9ebce201"
+  },
+  "Malphite": {
+   "file": "Malphite.png",
+   "phash": "6699ae65aa45ea55"
+  },
+  "Malzahar": {
+   "file": "Malzahar.png",
+   "phash": "9db6ea496866b619"
+  },
+  "Maokai": {
+   "file": "Maokai.png",
+   "phash": "6a72f0e4dc83bc0f"
+  },
+  "Master Yi": {
+   "file": "MasterYi.png",
+   "phash": "1e387eedaaf5a801"
+  },
+  "Mel": {
+   "file": "Mel.png",
+   "phash": "e6a62a97cad52a55"
+  },
+  "Milio": {
+   "file": "Milio.png",
+   "phash": "cb8b783fa04f5255"
+  },
+  "Miss Fortune": {
+   "file": "MissFortune.png",
+   "phash": "c69c26f8e2937ea1"
+  },
+  "Mordekaiser": {
+   "file": "Mordekaiser.png",
+   "phash": "aabddccb0b42d855"
+  },
+  "Morgana": {
+   "file": "Morgana.png",
+   "phash": "89e667987c7c96c1"
+  },
+  "Naafiri": {
+   "file": "Naafiri.png",
+   "phash": "2a6246f5fe15ea15"
+  },
+  "Nami": {
+   "file": "Nami.png",
+   "phash": "de6e9e36498126d9"
+  },
+  "Nasus": {
+   "file": "Nasus.png",
+   "phash": "f29c33622e6daa55"
+  },
+  "Nautilus": {
+   "file": "Nautilus.png",
+   "phash": "f8f2cae8b4938e15"
+  },
+  "Neeko": {
+   "file": "Neeko.png",
+   "phash": "9a7238fde086965d"
+  },
+  "Nidalee": {
+   "file": "Nidalee.png",
+   "phash": "eb711e8e0ed4ea51"
+  },
+  "Nilah": {
+   "file": "Nilah.png",
+   "phash": "eb80f417f807fa45"
+  },
+  "Nocturne": {
+   "file": "Nocturne.png",
+   "phash": "d832aed166e5ba45"
+  },
+  "Nunu & Willump": {
+   "file": "Nunu.png",
+   "phash": "5fc1ea0d6a2daa55"
+  },
+  "Olaf": {
+   "file": "Olaf.png",
+   "phash": "9afc0ee1fe15a251"
+  },
+  "Orianna": {
+   "file": "Orianna.png",
+   "phash": "f23a319ec6c61eb1"
+  },
+  "Ornn": {
+   "file": "Ornn.png",
+   "phash": "ca1e5ae5a655ea61"
+  },
+  "Pantheon": {
+   "file": "Pantheon.png",
+   "phash": "6ade8e963627f901"
+  },
+  "Poppy": {
+   "file": "Poppy.png",
+   "phash": "e2e22aaaab95ae55"
+  },
+  "Pyke": {
+   "file": "Pyke.png",
+   "phash": "0ee6fef4781d8911"
+  },
+  "Qiyana": {
+   "file": "Qiyana.png",
+   "phash": "e3d968aeaa07ea15"
+  },
+  "Quinn": {
+   "file": "Quinn.png",
+   "phash": "f8f8b8c421b9d617"
+  },
+  "Rakan": {
+   "file": "Rakan.png",
+   "phash": "a866e2de9e87c255"
+  },
+  "Rammus": {
+   "file": "Rammus.png",
+   "phash": "f23d8efc7e03b801"
+  },
+  "Rek'Sai": {
+   "file": "RekSai.png",
+   "phash": "ec8b6ae63c7c1e81"
+  },
+  "Rell": {
+   "file": "Rell.png",
+   "phash": "76b2b2ecc295ea15"
+  },
+  "Renata Glasc": {
+   "file": "Renata.png",
+   "phash": "cce30ef19ee12655"
+  },
+  "Renekton": {
+   "file": "Renekton.png",
+   "phash": "ce276991b60dde31"
+  },
+  "Rengar": {
+   "file": "Rengar.png",
+   "phash": "6383e83d1ad6d655"
+  },
+  "Riven": {
+   "file": "Riven.png",
+   "phash": "e4a44e1be8fb9e11"
+  },
+  "Rumble": {
+   "file": "Rumble.png",
+   "phash": "f84ad93a0ee1f685"
+  },
+  "Ryze": {
+   "file": "Ryze.png",
+   "phash": "2ebab6b2f2d54815"
+  },
+  "Samira": {
+   "file": "Samira.png",
+   "phash": "f8d14619fc23fc07"
+  },
+  "Sejuani": {
+   "file": "Sejuani.png",
+   "phash": "baebd00751d5ce15"
+  },
+  "Senna": {
+   "file": "Senna.png",
+   "phash": "5a2a4aafec957455"
+  },
+  "Seraphine": {
+   "file": "Seraphine.png",
+   "phash": "f8e2729eea4d8a15"
+  },
+  "Sett": {
+   "file": "Sett.png",
+   "phash": "3e3ed878c6f11e41"
+  },
+  "Shaco": {
+   "file": "Shaco.png",
+   "phash": "96e48b51b4d2ee35"
+  },
+  "Shen": {
+   "file": "Shen.png",
+   "phash": "9e3a380efce7aa11"
+  },
+  "Shyvana": {
+   "file": "Shyvana.png",
+   "phash": "8ea2d2d1e8d5aa5d"
+  },
+  "Singed": {
+   "file": "Singed.png",
+   "phash": "b6aa7a26eaa28c5d"
+  },
+  "Sion": {
+   "file": "Sion.png",
+   "phash": "3abcbe95d25a6825"
+  },
+  "Sivir": {
+   "file": "Sivir.png",
+   "phash": "ea9ebe99e4111671"
+  },
+  "Skarner": {
+   "file": "Skarner.png",
+   "phash": "23f57a8dd607ea11"
+  },
+  "Smolder": {
+   "file": "Smolder.png",
+   "phash": "9971e63c22d39e39"
+  },
+  "Sona": {
+   "file": "Sona.png",
+   "phash": "a6529e99ea95aa55"
+  },
+  "Soraka": {
+   "file": "Soraka.png",
+   "phash": "b2b2da9e58c5e455"
+  },
+  "Swain": {
+   "file": "Swain.png",
+   "phash": "f2a666628a9b867d"
+  },
+  "Sylas": {
+   "file": "Sylas.png",
+   "phash": "3d615887b25fd60d"
+  },
+  "Syndra": {
+   "file": "Syndra.png",
+   "phash": "9ae474bd4ab31e45"
+  },
+  "Tahm Kench": {
+   "file": "TahmKench.png",
+   "phash": "c966aab9cd726615"
+  },
+  "Taliyah": {
+   "file": "Taliyah.png",
+   "phash": "fa656a9c9a97a641"
+  },
+  "Talon": {
+   "file": "Talon.png",
+   "phash": "cc995a763e0f72c1"
+  },
+  "Taric": {
+   "file": "Taric.png",
+   "phash": "7a966aa527873e51"
+  },
+  "Teemo": {
+   "file": "Teemo.png",
+   "phash": "3a7a70f5cdc34a15"
+  },
+  "Thresh": {
+   "file": "Thresh.png",
+   "phash": "b26ee21ec6f93a05"
+  },
+  "Tristana": {
+   "file": "Tristana.png",
+   "phash": "da9226e6ccd5f80d"
+  },
+  "Trundle": {
+   "file": "Trundle.png",
+   "phash": "acc79a0fcac5b817"
+  },
+  "Tryndamere": {
+   "file": "Tryndamere.png",
+   "phash": "1c27e63e2eb79291"
+  },
+  "Twisted Fate": {
+   "file": "TwistedFate.png",
+   "phash": "ce8eaa74ea952e51"
+  },
+  "Twitch": {
+   "file": "Twitch.png",
+   "phash": "5a626ee772497295"
+  },
+  "Udyr": {
+   "file": "Udyr.png",
+   "phash": "d88d322d36cff215"
+  },
+  "Urgot": {
+   "file": "Urgot.png",
+   "phash": "666c66366699b2d9"
+  },
+  "Varus": {
+   "file": "Varus.png",
+   "phash": "ea5a9a5a49cba695"
+  },
+  "Vayne": {
+   "file": "Vayne.png",
+   "phash": "7995ac5ad26992e5"
+  },
+  "Veigar": {
+   "file": "Veigar.png",
+   "phash": "f36c1eb1e15d9845"
+  },
+  "Vel'Koz": {
+   "file": "Velkoz.png",
+   "phash": "0f0fbf70b0e07695"
+  },
+  "Vex": {
+   "file": "Vex.png",
+   "phash": "fa5ed85e2a298c55"
+  },
+  "Vi": {
+   "file": "Vi.png",
+   "phash": "c8e86696665bb61d"
+  },
+  "Viego": {
+   "file": "Viego.png",
+   "phash": "2e4cf6b1e2e16a55"
+  },
+  "Viktor": {
+   "file": "Viktor.png",
+   "phash": "2d3d36669ed69249"
+  },
+  "Vladimir": {
+   "file": "Vladimir.png",
+   "phash": "c6ee728f9a0d3ca1"
+  },
+  "Volibear": {
+   "file": "Volibear.png",
+   "phash": "936ee236aa0f6a55"
+  },
+  "Warwick": {
+   "file": "Warwick.png",
+   "phash": "93d4ec1bda15fa05"
+  },
+  "Wukong": {
+   "file": "MonkeyKing.png",
+   "phash": "f6e2924d78f48e0d"
+  },
+  "Xayah": {
+   "file": "Xayah.png",
+   "phash": "fa4deac72851a655"
+  },
+  "Xerath": {
+   "file": "Xerath.png",
+   "phash": "f266ca19b8f5e215"
+  },
+  "Xin Zhao": {
+   "file": "XinZhao.png",
+   "phash": "338ed397e8f09e05"
+  },
+  "Yasuo": {
+   "file": "Yasuo.png",
+   "phash": "a2e93949ce83b675"
+  },
+  "Yone": {
+   "file": "Yone.png",
+   "phash": "3cdcbc3b8ae16a07"
+  },
+  "Yorick": {
+   "file": "Yorick.png",
+   "phash": "c959a279e6c1965d"
+  },
+  "Yunara": {
+   "file": "Yunara.png",
+   "phash": "d8e61a0fc6fcba41"
+  },
+  "Yuumi": {
+   "file": "Yuumi.png",
+   "phash": "fccab8172847ea55"
+  },
+  "Zaahen": {
+   "file": "Zaahen.png",
+   "phash": "b2667a2ebc27ee01"
+  },
+  "Zac": {
+   "file": "Zac.png",
+   "phash": "9ea6da974a55ea05"
+  },
+  "Zed": {
+   "file": "Zed.png",
+   "phash": "9252da7ff8e4e405"
+  },
+  "Zeri": {
+   "file": "Zeri.png",
+   "phash": "0a3e6a4eb43dae55"
+  },
+  "Ziggs": {
+   "file": "Ziggs.png",
+   "phash": "ca76aed1bc09a25d"
+  },
+  "Zilean": {
+   "file": "Zilean.png",
+   "phash": "f3a226b2da8e9e45"
+  },
+  "Zoe": {
+   "file": "Zoe.png",
+   "phash": "326a5a8eeb15ae55"
+  },
+  "Zyra": {
+   "file": "Zyra.png",
+   "phash": "997326d4ec8fc619"
+  }
+ },
+ "count": 173,
+ "version": "16.19.1"
+}

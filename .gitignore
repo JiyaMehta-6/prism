@@ -1,0 +1,24 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Environments
+.venv/
+venv/
+
+# Runtime artefacts
+logs/
+outputs/
+data/settings.json
+data/profiles/
+data/sample_videos/
+data/prism.lock
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
