@@ -112,6 +112,12 @@ def main() -> int:
         )
         return 0
 
+    # Crash leftovers: with the lock held no live writer owns these, so a
+    # stranded settings/JSON/chart/PDF staging file can be reclaimed safely.
+    swept = config.sweep_stale_tmp()
+    if swept:
+        logger.info("Removed %d stale .tmp file(s) left by a previous run", swept)
+
     window = MainWindow()
     window.show()
 

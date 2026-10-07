@@ -232,6 +232,31 @@ def ensure_directories() -> None:
         os.makedirs(path, exist_ok=True)
 
 
+def sweep_stale_tmp() -> int:
+    """Remove ``*.tmp`` leftovers from a previous crashed run.
+
+    Every writer in PRISM (settings, JSON exports, charts, PDF) stages to a
+    ``*.tmp`` file next to its target and swaps it in atomically; a crash
+    between the two steps strands the temp file forever. Safe to call only
+    while the single-instance lock is held and no export is running - it
+    must never delete a *live* staging file.
+    """
+    removed = 0
+    for root_dir in (DATA_DIR, LOG_DIR, OUTPUT_DIR):
+        if not os.path.isdir(root_dir):
+            continue
+        for dirpath, _dirnames, filenames in os.walk(root_dir):
+            for name in filenames:
+                if not name.endswith(".tmp"):
+                    continue
+                try:
+                    os.remove(os.path.join(dirpath, name))
+                    removed += 1
+                except OSError:
+                    pass  # locked/already gone: never block startup
+    return removed
+
+
 def load_settings() -> Settings:
     """Load settings from disk, falling back to defaults on any problem."""
     settings = Settings()

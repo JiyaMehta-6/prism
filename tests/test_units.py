@@ -228,6 +228,179 @@ def test_phase_aware_window_plan() -> None:
     assert phase_for_minute(100.0, settings.phase_boundaries) == "End"
 
 
+def test_storage_entries_and_clear(tmp_path, monkeypatch) -> None:
+    import core.config as config_module
+    from core.storage import clear_entries, format_size, storage_entries
+
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    (profiles / "a.json").write_text("{}", encoding="utf-8")
+    (profiles / "ignore.txt").write_text("x", encoding="utf-8")
+    outputs = tmp_path / "outputs"
+    (outputs / "charts").mkdir(parents=True)
+    (outputs / "charts" / "c.png").write_bytes(b"1234")
+    (outputs / "clips").mkdir()
+    (outputs / "last_analysis.json").write_text("{}", encoding="utf-8")
+    (outputs / "report.pdf").write_bytes(b"%PDF-1.4")
+    logs = tmp_path / "logs"
+    logs.mkdir()
+    (logs / "analysis.log").write_text("line\n", encoding="utf-8")
+    # Rotated backups the rotating handler creates after 2 MB.
+    (logs / "analysis.log.1").write_text("old line\n", encoding="utf-8")
+    (logs / "analysis.log.2").write_text("older line\n", encoding="utf-8")
+    settings_path = tmp_path / "settings.json"
+    settings_path.write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr(config_module, "PROFILE_DIR", str(profiles))
+    monkeypatch.setattr(config_module, "OUTPUT_DIR", str(outputs))
+    monkeypatch.setattr(config_module, "CHART_DIR", str(outputs / "charts"))
+    monkeypatch.setattr(config_module, "CLIPS_DIR", str(outputs / "clips"))
+    monkeypatch.setattr(config_module, "LOG_PATH", str(logs / "analysis.log"))
+    monkeypatch.setattr(config_module, "SETTINGS_PATH", str(settings_path))
+
+    entries = {entry.key: entry for entry in storage_entries()}
+    expected = {"profiles", "last_report", "charts", "pdfs", "clips", "log", "settings"}
+    assert expected <= set(entries)
+    # Only .json snapshots count as profiles; sizes are real.
+    assert entries["profiles"].count == 1
+    assert entries["profiles"].size_bytes == 2
+    assert entries["charts"].count == 1
+    assert entries["pdfs"].count == 1
+    assert entries["last_report"].count == 1
+    assert entries["log"].action == "truncate"
+    # The log entry covers the live file and its rotated backups.
+    assert entries["log"].count == 3
+
+    errors = clear_entries(["profiles", "last_report", "charts", "pdfs", "clips", "log"])
+    assert errors == {}
+    assert not (profiles / "a.json").exists()
+    assert not (outputs / "last_analysis.json").exists()
+    assert not (outputs / "charts" / "c.png").exists()
+    assert not (outputs / "report.pdf").exists()
+    # The log file itself survives (logger holds it open) but is emptied,
+    # while the rotated backups are removed completely.
+    assert (logs / "analysis.log").exists()
+    assert (logs / "analysis.log").read_text(encoding="utf-8") == ""
+    assert not (logs / "analysis.log.1").exists()
+    assert not (logs / "analysis.log.2").exists()
+    # Settings are never touched unless explicitly requested.
+    assert settings_path.exists()
+    assert clear_entries(["settings"]) == {}
+    assert not settings_path.exists()
+
+    # Re-running on an empty inventory is a no-op, not an error.
+    assert clear_entries(["profiles", "charts", "unknown"]) == {}
+    assert format_size(0) == "0 B"
+    assert format_size(2048) == "2.0 KB"
+
+
+def test_sweep_stale_tmp(tmp_path, monkeypatch) -> None:
+    import core.config as config_module
+
+    data = tmp_path / "data"
+    data.mkdir()
+    outputs = tmp_path / "outputs"
+    (outputs / "charts").mkdir(parents=True)
+    logs = tmp_path / "logs"
+    logs.mkdir()
+
+    (data / "settings.json.tmp").write_text("partial", encoding="utf-8")
+    (data / "settings.json").write_text("{}", encoding="utf-8")
+    (outputs / "report.pdf.tmp").write_bytes(b"partial")
+    (outputs / "charts" / "radar.png.123.tmp").write_bytes(b"x")
+    (outputs / "charts" / "radar.png").write_bytes(b"png")
+    (logs / "analysis.log").write_text("log", encoding="utf-8")
+
+    monkeypatch.setattr(config_module, "DATA_DIR", str(data))
+    monkeypatch.setattr(config_module, "OUTPUT_DIR", str(outputs))
+    monkeypatch.setattr(config_module, "LOG_DIR", str(logs))
+
+    assert config_module.sweep_stale_tmp() == 3
+    assert not (data / "settings.json.tmp").exists()
+    assert not (outputs / "report.pdf.tmp").exists()
+    assert not (outputs / "charts" / "radar.png.123.tmp").exists()
+    # Real files are never touched.
+    assert (data / "settings.json").exists()
+    assert (outputs / "charts" / "radar.png").exists()
+    assert (logs / "analysis.log").exists()
+    # Idempotent once clean.
+    assert config_module.sweep_stale_tmp() == 0
+
+
+def test_snapshot_never_overwrites_same_second(tmp_path, monkeypatch) -> None:
+    import os
+
+    import numpy as np
+
+    import analytics.similarity as similarity_module
+    from analytics.similarity import save_profile_snapshot
+
+    class _FrozenTime:
+        """Stub replacing time *only inside similarity* (logging keeps real time)."""
+
+        @staticmethod
+        def strftime(_fmt: str) -> str:
+            return "20260101-120000"
+
+    monkeypatch.setattr(similarity_module, "time", _FrozenTime())
+    profile = _stub_profile()
+    profile.player_label = "ClashTester"
+    fingerprint = FingerprintEngine().compute(profile)
+    directory = tmp_path / "profiles"
+    directory.mkdir()
+
+    first = save_profile_snapshot(
+        profile, fingerprint, str(directory), vector=np.array([1.0, 0.5])
+    )
+    # Different payload, identical timestamp: must not clobber the first file.
+    second = save_profile_snapshot(
+        profile, fingerprint, str(directory), vector=np.array([2.0, 0.5])
+    )
+    assert first != second
+    assert os.path.isfile(first) and os.path.isfile(second)
+    # Identical payload still dedupes even when the name differs.
+    third = save_profile_snapshot(
+        profile, fingerprint, str(directory), vector=np.array([1.0, 0.5])
+    )
+    assert third == first
+    assert len(os.listdir(str(directory))) == 2
+
+
+def test_long_player_label_keeps_filenames_valid(tmp_path) -> None:
+    """A huge player label must not produce unusable >MAX_PATH filenames."""
+    import json
+    import os
+
+    import numpy as np
+
+    from analytics.similarity import save_profile_snapshot
+    from gui.main_window import _safe_filename
+
+    label = "L" * 300
+    safe = _safe_filename(label)
+    assert len(safe) == 60
+    assert _safe_filename("///") == "player"
+    assert _safe_filename("") == "player"
+
+    profile = _stub_profile()
+    profile.player_label = label
+    fingerprint = FingerprintEngine().compute(profile)
+    directory = tmp_path / "profiles"
+    directory.mkdir()
+
+    path = save_profile_snapshot(
+        profile, fingerprint, str(directory), vector=np.array([1.0, 0.5])
+    )
+    name = os.path.basename(path)
+    assert os.path.isfile(path)
+    # Filename = label(60) + "-" + stamp(15) + ".json" => 81 chars total.
+    assert len(name) == 60 + 1 + 15 + len(".json")
+    # The payload still carries the full label for display/comparison.
+    with open(path, encoding="utf-8") as handle:
+        payload = json.load(handle)
+    assert payload["player_label"] == label
+
+
 def test_stub_profile_shape() -> None:
     profile = _stub_profile()
     assert profile.video_count == 3

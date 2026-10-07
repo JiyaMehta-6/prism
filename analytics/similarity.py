@@ -83,8 +83,12 @@ def save_profile_snapshot(
         )
         return ""
     safe_label = "".join(c if c.isalnum() or c in "-_ " else "_" for c in profile.player_label)
+    # Cap the sanitized label: an absurdly long player label would push the
+    # filename past MAX_PATH and the save would fail. The payload below
+    # still stores the full label - only the filename is truncated.
+    safe_label = safe_label.strip(" ._")[:60]
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    path = os.path.join(directory, f"{safe_label.strip() or 'player'}-{stamp}.json")
+    path = os.path.join(directory, f"{safe_label or 'player'}-{stamp}.json")
     payload = {
         "player_label": profile.player_label,
         "saved_at": stamp,
@@ -110,6 +114,15 @@ def save_profile_snapshot(
             ):
                 logger.info("Identical snapshot already stored: %s", filename)
                 return os.path.join(directory, filename)
+
+    # Same-second saves with *different* content must not overwrite an
+    # existing snapshot: only identical payloads were deduped above.
+    if os.path.exists(path):
+        base, ext = os.path.splitext(path)
+        counter = 1
+        while os.path.exists(f"{base}-{counter}{ext}"):
+            counter += 1
+        path = f"{base}-{counter}{ext}"
 
     save_json(path, payload)
     logger.info("Profile snapshot saved: %s", path)

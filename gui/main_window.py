@@ -43,6 +43,7 @@ from core.models import AnalysisReport
 from core.video_loader import is_supported, probe_video
 from gui.report_view import ReportView
 from gui.settings_dialog import SettingsDialog
+from gui.storage_dialog import StorageDialog
 from gui.worker import AnalysisWorker, ClipExportWorker, PdfExportWorker
 
 logger = get_logger("main_window")
@@ -51,9 +52,13 @@ VIDEO_FILTER = "Gameplay Videos (*.mp4 *.mkv *.avi *.mov);;All Files (*)"
 
 
 def _safe_filename(label: str) -> str:
-    """Make a player label safe for use inside a file path."""
+    """Make a player label safe for use inside a file path.
+
+    Also capped: a very long label would produce a >260-char default PDF
+    path that the save dialog / filesystem cannot handle.
+    """
     cleaned = "".join(c if c.isalnum() or c in "-_ " else "_" for c in str(label or ""))
-    cleaned = cleaned.strip(" ._")
+    cleaned = cleaned.strip(" ._")[:60]
     return cleaned or "player"
 
 STYLESHEET = """
@@ -351,9 +356,15 @@ class MainWindow(QMainWindow):
         self.export_btn.clicked.connect(self.export_pdf)
         open_btn = QPushButton("Outputs")
         open_btn.clicked.connect(self.open_outputs)
+        self.data_btn = QPushButton("Manage Data")
+        self.data_btn.setToolTip(
+            "Inspect and delete stored profiles, reports, charts, clips and logs"
+        )
+        self.data_btn.clicked.connect(self.open_storage)
         action_grid.addWidget(self.settings_btn, 0, 0)
         action_grid.addWidget(self.export_btn, 0, 1)
         action_grid.addWidget(open_btn, 1, 0)
+        action_grid.addWidget(self.data_btn, 1, 1)
         layout.addLayout(action_grid)
 
         self.clips_btn = QPushButton("Export Roam Clips")
@@ -428,10 +439,17 @@ class MainWindow(QMainWindow):
             self.log_line(f"Added {added} video(s); total {self.video_list.count()}.")
 
     def _is_listed(self, path: str) -> bool:
-        return any(
-            self.video_list.item(row).data(Qt.UserRole) == path
-            for row in range(self.video_list.count())
-        )
+        # Windows paths are case-insensitive (and separators may differ):
+        # compare normalized forms so C:\Game.mp4 and c:\game.mp4 can never
+        # queue the same recording twice.
+        key = os.path.normcase(os.path.normpath(path))
+        for row in range(self.video_list.count()):
+            listed = self.video_list.item(row).data(Qt.UserRole)
+            if not listed:
+                continue
+            if os.path.normcase(os.path.normpath(str(listed))) == key:
+                return True
+        return False
 
     def remove_selected(self) -> None:
         for item in self.video_list.selectedItems():
@@ -477,6 +495,7 @@ class MainWindow(QMainWindow):
         self.analyse_btn.setEnabled(False)
         self.cancel_btn.setEnabled(True)
         self.settings_btn.setEnabled(False)
+        self.data_btn.setEnabled(False)
         self.add_btn.setEnabled(False)
         self.remove_btn.setEnabled(False)
         self.clear_btn.setEnabled(False)
@@ -525,6 +544,7 @@ class MainWindow(QMainWindow):
         self.analyse_btn.setEnabled(True)
         self.cancel_btn.setEnabled(False)
         self.settings_btn.setEnabled(True)
+        self.data_btn.setEnabled(True)
         self.add_btn.setEnabled(True)
         self.remove_btn.setEnabled(True)
         self.clear_btn.setEnabled(True)
@@ -551,6 +571,34 @@ class MainWindow(QMainWindow):
                     "could not be written."
                 )
                 self.setStatusMessage("Settings applied (file not written).")
+
+    def open_storage(self) -> None:
+        """Manage the data PRISM stored on this machine (delete history)."""
+        if self.worker is not None and self.worker.isRunning():
+            return
+        if self.pdf_worker is not None and self.pdf_worker.isRunning():
+            self.log_line("Wait for the PDF export to finish before managing data.")
+            return
+        if self.clip_worker is not None and self.clip_worker.isRunning():
+            self.log_line("Wait for the clip export to finish before managing data.")
+            return
+        dialog = StorageDialog(self)
+        dialog.exec()
+        cleared = set(dialog.cleared_keys)
+        if not cleared:
+            return
+        if "settings" in cleared:
+            self.settings = load_settings()
+            self.log_line("Settings reset to defaults.")
+        if cleared & {"charts", "last_report"} and self.report is not None:
+            # The PDF embeds the chart PNGs that were just removed; the next
+            # analysis regenerates them and re-enables the button.
+            self.export_btn.setEnabled(False)
+            self.log_line(
+                "Charts removed - Export PDF is disabled until the next analysis."
+            )
+        self.log_line(f"Deleted stored data: {', '.join(sorted(cleared))}.")
+        self.setStatusMessage("Stored data deleted.")
 
     def export_pdf(self) -> None:
         if self.report is None:

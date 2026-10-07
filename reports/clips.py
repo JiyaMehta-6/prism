@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import cv2
 
@@ -73,6 +73,20 @@ def export_clips(
     os.makedirs(out_dir, exist_ok=True)
 
     with_events = [a for a in analyses if a.roam_events]
+    # Recordings from different folders can share a basename (game.mp4);
+    # assign each video a unique stem up-front so one video's export can
+    # never silently overwrite another video's clips.
+    stems: Dict[int, str] = {}
+    used: set[str] = set()
+    for analysis in with_events:
+        base = _safe_name(os.path.splitext(analysis.info.name)[0])
+        stem = base
+        suffix = 2
+        while stem in used:
+            stem = f"{base}_{suffix}"
+            suffix += 1
+        used.add(stem)
+        stems[id(analysis)] = stem
     total = sum(min(len(a.roam_events), max(1, max_per_video)) for a in with_events)
     done = 0
     written: List[str] = []
@@ -82,7 +96,10 @@ def export_clips(
         events = sorted(analysis.roam_events, key=lambda r: r.start_time)
         events = events[: max(1, max_per_video)]
         written.extend(
-            _export_video_clips(analysis, events, out_dir, pre_sec, post_sec, should_cancel)
+            _export_video_clips(
+                analysis, events, out_dir, pre_sec, post_sec, should_cancel,
+                stem=stems[id(analysis)],
+            )
         )
         done += len(events)
         if progress:
@@ -97,6 +114,7 @@ def _export_video_clips(
     pre_sec: float,
     post_sec: float,
     should_cancel: Optional[Callable[[], bool]],
+    stem: Optional[str] = None,
 ) -> List[str]:
     info = analysis.info
     cap = cv2.VideoCapture(info.path)
@@ -106,7 +124,8 @@ def _export_video_clips(
 
     fps = info.fps if info.fps and info.fps > 1e-3 else 30.0
     size = (int(info.width) or 1280, int(info.height) or 720)
-    stem = _safe_name(os.path.splitext(info.name)[0])
+    if not stem:
+        stem = _safe_name(os.path.splitext(info.name)[0])
     written: List[str] = []
     try:
         for index, roam in enumerate(events, start=1):

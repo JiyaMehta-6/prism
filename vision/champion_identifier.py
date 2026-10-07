@@ -186,13 +186,25 @@ class ChampionIdentifier:
             # masquerades as a valid cache.
             for filename in os.listdir(stage):
                 os.replace(os.path.join(stage, filename), os.path.join(self.cache_dir, filename))
-            with open(self.manifest_path, "w", encoding="utf-8") as handle:
-                json.dump(
-                    {"version": version, "count": downloaded, "champions": manifest},
-                    handle,
-                    indent=1,
-                    sort_keys=True,
-                )
+            # Stage then swap: a crash mid-write must not leave a truncated
+            # manifest that would silently disable identification until the
+            # next full prefetch.
+            tmp_manifest = f"{self.manifest_path}.tmp"
+            try:
+                with open(tmp_manifest, "w", encoding="utf-8") as handle:
+                    json.dump(
+                        {"version": version, "count": downloaded, "champions": manifest},
+                        handle,
+                        indent=1,
+                        sort_keys=True,
+                    )
+                os.replace(tmp_manifest, self.manifest_path)
+            finally:
+                if os.path.exists(tmp_manifest):
+                    try:
+                        os.remove(tmp_manifest)
+                    except OSError:
+                        pass
             os.rmdir(stage)
             self._load_manifest()
             logger.info(

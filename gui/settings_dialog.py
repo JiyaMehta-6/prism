@@ -207,6 +207,9 @@ class SettingsDialog(QDialog):
         form.setLabelAlignment(Qt.AlignRight)
 
         self.player_label = QLineEdit()
+        # Keeps every derived filename (PDF default name, profile snapshots)
+        # comfortably inside Windows MAX_PATH even with long prefixes.
+        self.player_label.setMaxLength(60)
         form.addRow("Player label", self.player_label)
 
         self.similarity_top = QSpinBox()
@@ -390,8 +393,7 @@ class SettingsDialog(QDialog):
             else:
                 # Malformed override: keep the previous value and say so
                 # instead of silently wiping the user's configuration.
-                QMessageBox.warning(
-                    self,
+                self._warn(
                     "Invalid minimap ROI",
                     "The ROI override must be four positive numbers "
                     "(x,y,w,h as 0-1 fractions), e.g. 0.005,0.78,0.21,0.21.\n"
@@ -417,6 +419,13 @@ class SettingsDialog(QDialog):
                 overrides[key] = value
         s.region_anchors = overrides
         return s.validated()
+
+    def _warn(self, title: str, text: str) -> None:
+        """Message box whose text wraps instead of widening the dialog."""
+        box = QMessageBox(QMessageBox.Warning, title, text, QMessageBox.Ok, self)
+        for label in box.findChildren(QLabel):
+            label.setWordWrap(True)
+        box.exec()
 
     def _restore_defaults(self) -> None:
         self.settings = Settings()

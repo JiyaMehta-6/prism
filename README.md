@@ -92,6 +92,9 @@ with no telemetry of any kind:
 - **PDF export** (ReportLab) and JSON export.
 - **Roam clip export** - short MP4 clips around every detected roam,
   re-encoded with OpenCV (fully offline).
+- **Storage manager** (`Manage Data`) - inspect what PRISM stored on disk
+  (profiles, last report, charts, PDFs, clips, log, settings) and delete
+  any of it; only those exact paths are ever touched.
 - **Parallel multi-video analysis** - videos in a batch are analysed
   concurrently (bounded thread pool, results keep input order) with a
   benchmark-gated hardware-decode attempt on the first video.
