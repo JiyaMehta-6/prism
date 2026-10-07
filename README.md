@@ -11,6 +11,8 @@ actionable improvement findings.
 > **Core research question:** *Can a player's strategic identity and
 > behavioural tendencies be extracted solely from gameplay recordings?*
 
+![PRISM main window - behavioural report overview](docs/images/main_window.png)
+
 ---
 
 ## What PRISM is (and is not)
@@ -138,6 +140,46 @@ Full details, verification steps and troubleshooting: **[docs/INSTALLATION.md](d
 7. Click **Export Roam Clips** to write short MP4 clips of every detected
    roam to `outputs/clips/` (OpenCV re-encode, fully offline).
 
+## Screenshots
+
+All shots are from a real run - one 24-minute recording analysed locally on
+CPU in about three minutes. Nothing here is mocked up.
+
+**Live analysis** - progress, stage and log stream while the pipeline runs:
+
+![PRISM analysing a video](docs/images/analysis_running.png)
+
+**Positioning** - where the player actually spent the match, straight from
+minimap pixels:
+
+![Positioning report tab](docs/images/positioning_tab.png)
+
+**Tactical timeline** - every window of the match tagged with its game phase
+(Early / Mid / Late / End):
+
+![Tactical timeline tab](docs/images/timeline_tab.png)
+
+**Improvement insights** - confidence-scored findings with evidence and a
+concrete suggestion each:
+
+![Insights report tab](docs/images/insights_tab.png)
+
+**Settings** - tracking, OCR, report and map-region tuning:
+
+![Settings dialog](docs/images/settings_dialog.png)
+
+**Manage Data** - see and clear exactly what PRISM stored on disk:
+
+![Manage Data dialog](docs/images/storage_dialog.png)
+
+**Chart suite**, rendered in the dark Hextech theme used by both the app and
+the PDF:
+
+| | |
+| --- | --- |
+| **Behavioural fingerprint**<br>![Fingerprint radar chart](docs/images/fingerprint_radar.png) | **Tactical timeline**<br>![Tactical timeline chart](docs/images/tactical_timeline.png) |
+| **Region distribution**<br>![Region distribution chart](docs/images/region_distribution.png) | **Region transitions**<br>![Region transition matrix chart](docs/images/transition_matrix.png) |
+
 ## Testing
 
 ```powershell
@@ -163,7 +205,7 @@ PRISM/
 │                            # similarity, archetypes, insights, timeline
 ├── reports/                 # ReportLab PDF export
 ├── visualizations/          # Matplotlib chart suite
-├── docs/                    # installation, architecture, technical documentation
+├── docs/                    # installation, architecture, technical docs + README screenshots
 ├── tests/                   # unit + end-to-end pipeline tests
 ├── data/                    # settings + stored profile snapshots (runtime)
 ├── outputs/                 # charts, JSON, PDF, roam clips (runtime)
