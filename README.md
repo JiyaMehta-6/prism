@@ -1,6 +1,7 @@
 # PRISM
 
 **Player Replay Intelligence and Strategic Modeling**
+Specially for LoL
 
 A vision-based behavioural analytics desktop application for League of Legends
 players. PRISM watches gameplay **videos** and produces an explainable
